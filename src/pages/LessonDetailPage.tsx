@@ -143,14 +143,14 @@ export default function LessonDetailPage() {
                 <TabsTrigger value="reviews" className="flex-1">التقييم</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="about" className="space-y-4 mt-4">
+              <TabsContent value="about" className="space-y-4 mt-4 text-right">
                 {lesson.min_age && lesson.max_age && (
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex items-center gap-2 text-sm flex-row-reverse">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <span>العمر المتوقع: {lesson.min_age} - {lesson.max_age} سنة</span>
                   </div>
                 )}
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex items-center gap-2 text-sm flex-row-reverse">
                   <Clock className="h-4 w-4 text-muted-foreground" />
                   <span>مدة الحصة: {lesson.duration_minutes} دقيقة</span>
                 </div>
@@ -161,12 +161,12 @@ export default function LessonDetailPage() {
                   </div>
                 )}
                 <div>
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex items-center gap-2 text-sm flex-row-reverse">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <span>المعلم: {teacher?.full_name ?? "..."}</span>
                   </div>
                   {teacher?.bio && (
-                    <p className="text-sm text-muted-foreground mt-1 mr-6">{teacher.bio}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{teacher.bio}</p>
                   )}
                 </div>
                 {lesson.notes && (
@@ -176,7 +176,7 @@ export default function LessonDetailPage() {
                   </div>
                 )}
                 {lesson.is_online && (
-                  <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-lg text-sm text-primary">
+                  <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-lg text-sm text-primary flex-row-reverse">
                     <Video className="h-4 w-4" />
                     <span>هذه الحصة أونلاين عبر زوم</span>
                   </div>
