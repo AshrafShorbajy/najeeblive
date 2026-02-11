@@ -32,6 +32,8 @@ export default function TeacherDashboard() {
     min_age: 0, max_age: 0, notes: "",
   });
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editLesson, setEditLesson] = useState<any>(null);
   const [scheduleBookingId, setScheduleBookingId] = useState<string | null>(null);
   const [scheduleDate, setScheduleDate] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
@@ -122,6 +124,52 @@ export default function TeacherDashboard() {
     else {
       toast.success("تمت إضافة الحصة");
       setAddDialogOpen(false);
+      fetchLessons();
+    }
+  };
+
+  const handleEditLesson = (lesson: any) => {
+    setEditLesson({
+      ...lesson,
+      curriculum_id: lesson.curriculum_id || "",
+      grade_level_id: lesson.grade_level_id || "",
+      subject_id: lesson.subject_id || "",
+      skill_category_id: lesson.skill_category_id || "",
+    });
+    // Load dependent dropdowns
+    if (lesson.curriculum_id) {
+      supabase.from("grade_levels").select("*").eq("curriculum_id", lesson.curriculum_id)
+        .then(({ data }) => setGradeLevels(data ?? []));
+    }
+    if (lesson.grade_level_id) {
+      supabase.from("subjects").select("*").eq("grade_level_id", lesson.grade_level_id)
+        .then(({ data }) => setSubjects(data ?? []));
+    }
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEditLesson = async () => {
+    if (!editLesson) return;
+    const { error } = await supabase.from("lessons").update({
+      title: editLesson.title,
+      description: editLesson.description,
+      lesson_type: editLesson.lesson_type,
+      curriculum_id: editLesson.curriculum_id || null,
+      grade_level_id: editLesson.grade_level_id || null,
+      subject_id: editLesson.subject_id || null,
+      skill_category_id: editLesson.skill_category_id || null,
+      duration_minutes: editLesson.duration_minutes,
+      price: editLesson.price,
+      min_age: editLesson.min_age || null,
+      max_age: editLesson.max_age || null,
+      notes: editLesson.notes,
+      is_active: editLesson.is_active,
+    }).eq("id", editLesson.id);
+    if (error) toast.error("خطأ في تعديل الحصة");
+    else {
+      toast.success("تم تعديل الحصة");
+      setEditDialogOpen(false);
+      setEditLesson(null);
       fetchLessons();
     }
   };
@@ -268,18 +316,93 @@ export default function TeacherDashboard() {
             <div className="space-y-3">
               {lessons.map((l) => (
                 <div key={l.id} className="bg-card rounded-xl p-4 border border-border">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-semibold">{l.title}</h3>
-                      <p className="text-xs text-muted-foreground">{l.duration_minutes} دقيقة • {l.price} ر.س</p>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-semibold">{l.title}</h3>
+                        <p className="text-xs text-muted-foreground">{l.duration_minutes} دقيقة • {l.price} ر.س</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => handleEditLesson(l)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <span className={`text-xs px-2 py-1 rounded-full ${l.is_active ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
+                          {l.is_active ? "نشط" : "غير نشط"}
+                        </span>
+                      </div>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${l.is_active ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
-                      {l.is_active ? "نشط" : "غير نشط"}
-                    </span>
-                  </div>
                 </div>
               ))}
             </div>
+            {/* Edit Lesson Dialog */}
+            <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+              <DialogContent className="max-h-[80vh] overflow-y-auto">
+                <DialogHeader><DialogTitle>تعديل الحصة</DialogTitle></DialogHeader>
+                {editLesson && (
+                  <div className="space-y-3">
+                    <div><Label>عنوان الحصة</Label><Input value={editLesson.title} onChange={(e) => setEditLesson({ ...editLesson, title: e.target.value })} /></div>
+                    <div><Label>الوصف</Label><Textarea value={editLesson.description || ""} onChange={(e) => setEditLesson({ ...editLesson, description: e.target.value })} /></div>
+                    <div><Label>نوع الحصة</Label>
+                      <Select value={editLesson.lesson_type} onValueChange={(v) => setEditLesson({ ...editLesson, lesson_type: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="tutoring">تقوية ومراجعة</SelectItem>
+                          <SelectItem value="bag_review">مراجعة الشنطة</SelectItem>
+                          <SelectItem value="skills">مهارات ومواهب</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {editLesson.lesson_type !== "skills" && (
+                      <>
+                        <div><Label>المنهج</Label>
+                          <Select value={editLesson.curriculum_id} onValueChange={(v) => {
+                            setEditLesson({ ...editLesson, curriculum_id: v, grade_level_id: "", subject_id: "" });
+                            supabase.from("grade_levels").select("*").eq("curriculum_id", v).then(({ data }) => setGradeLevels(data ?? []));
+                          }}>
+                            <SelectTrigger><SelectValue placeholder="اختر المنهج" /></SelectTrigger>
+                            <SelectContent>{curricula.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                        <div><Label>المرحلة</Label>
+                          <Select value={editLesson.grade_level_id} onValueChange={(v) => {
+                            setEditLesson({ ...editLesson, grade_level_id: v, subject_id: "" });
+                            supabase.from("subjects").select("*").eq("grade_level_id", v).then(({ data }) => setSubjects(data ?? []));
+                          }}>
+                            <SelectTrigger><SelectValue placeholder="اختر المرحلة" /></SelectTrigger>
+                            <SelectContent>{gradeLevels.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                        {editLesson.lesson_type === "tutoring" && (
+                          <div><Label>المادة</Label>
+                            <Select value={editLesson.subject_id} onValueChange={(v) => setEditLesson({ ...editLesson, subject_id: v })}>
+                              <SelectTrigger><SelectValue placeholder="اختر المادة" /></SelectTrigger>
+                              <SelectContent>{subjects.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {editLesson.lesson_type === "skills" && (
+                      <div><Label>نوع الموهبة</Label>
+                        <Select value={editLesson.skill_category_id} onValueChange={(v) => setEditLesson({ ...editLesson, skill_category_id: v })}>
+                          <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                          <SelectContent>{skillCats.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>المدة (دقيقة)</Label><Input type="number" value={editLesson.duration_minutes} onChange={(e) => setEditLesson({ ...editLesson, duration_minutes: parseInt(e.target.value) || 60 })} /></div>
+                      <div><Label>السعر (ر.س)</Label><Input type="number" value={editLesson.price} onChange={(e) => setEditLesson({ ...editLesson, price: parseFloat(e.target.value) || 0 })} /></div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label>نشط</Label>
+                      <input type="checkbox" checked={editLesson.is_active} onChange={(e) => setEditLesson({ ...editLesson, is_active: e.target.checked })} />
+                    </div>
+                    <div><Label>ملاحظات</Label><Textarea value={editLesson.notes || ""} onChange={(e) => setEditLesson({ ...editLesson, notes: e.target.value })} /></div>
+                    <Button onClick={handleSaveEditLesson} variant="hero" className="w-full">حفظ التعديلات</Button>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="bookings" className="mt-4 space-y-3">
