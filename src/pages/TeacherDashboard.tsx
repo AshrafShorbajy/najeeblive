@@ -470,6 +470,29 @@ export default function TeacherDashboard() {
                       <Button size="sm" variant="accent" className="w-full mt-2">بدء الحصة (زوم)</Button>
                     </a>
                   )}
+                  {b.status === "scheduled" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full mt-2 text-success border-success/30 hover:bg-success/10"
+                      onClick={async () => {
+                        const { error } = await supabase.from("bookings").update({
+                          status: "completed",
+                          zoom_join_url: null,
+                          zoom_start_url: null,
+                          zoom_meeting_id: null,
+                        }).eq("id", b.id);
+                        if (error) toast.error("خطأ في تحديث الحالة");
+                        else {
+                          toast.success("تم إنهاء الحصة بنجاح");
+                          fetchBookings();
+                        }
+                      }}
+                    >
+                      <CheckCircle className="h-4 w-4 ml-1" />
+                      إنهاء الحصة
+                    </Button>
+                  )}
                 </div>
               ))
             )}

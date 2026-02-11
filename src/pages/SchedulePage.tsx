@@ -4,9 +4,10 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Video, Clock, CheckCircle, User } from "lucide-react";
+import { toast } from "sonner";
 
 export default function SchedulePage() {
-  const { user } = useAuthContext();
+  const { user, isTeacher } = useAuthContext();
   const [bookings, setBookings] = useState<any[]>([]);
 
   useEffect(() => {
@@ -83,6 +84,29 @@ export default function SchedulePage() {
                     <Clock className="h-4 w-4" />
                     <span>{new Date(b.scheduled_at).toLocaleString("ar")}</span>
                   </div>
+                )}
+                {b.status === "scheduled" && b.teacher_id === user?.id && isTeacher && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full mb-2 text-success border-success/30 hover:bg-success/10"
+                    onClick={async () => {
+                      const { error } = await supabase.from("bookings").update({
+                        status: "completed",
+                        zoom_join_url: null,
+                        zoom_start_url: null,
+                        zoom_meeting_id: null,
+                      }).eq("id", b.id);
+                      if (error) toast.error("خطأ في تحديث الحالة");
+                      else {
+                        toast.success("تم إنهاء الحصة بنجاح");
+                        setBookings(prev => prev.map(item => item.id === b.id ? { ...item, status: "completed", zoom_join_url: null, zoom_start_url: null, zoom_meeting_id: null } : item));
+                      }
+                    }}
+                  >
+                    <CheckCircle className="h-4 w-4 ml-2" />
+                    إنهاء الحصة
+                  </Button>
                 )}
                 {b.status === "scheduled" && (b.zoom_join_url || b.zoom_start_url) && (
                   <a
