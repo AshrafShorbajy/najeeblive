@@ -11,7 +11,7 @@ const defaultOffers = [
 ];
 
 export function OffersSection() {
-  const [offers, setOffers] = useState<{ title: string; description: string }[]>(defaultOffers);
+  const [offers, setOffers] = useState<{ title: string; description: string; image_url?: string }[]>(defaultOffers);
 
   useEffect(() => {
     supabase.from("site_settings").select("value").eq("key", "offers").single()
@@ -34,15 +34,22 @@ export function OffersSection() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-card rounded-xl p-4 border border-border shadow-sm hover:shadow-elevated transition-shadow cursor-pointer"
+            className="bg-card rounded-xl border border-border shadow-sm hover:shadow-elevated transition-shadow cursor-pointer overflow-hidden"
           >
-            <div className="flex items-center gap-2 mb-2">
-              <div className="h-8 w-8 rounded-lg bg-secondary/10 flex items-center justify-center">
-                <Tag className="h-4 w-4 text-secondary" />
-              </div>
+            {offer.image_url && (
+              <img src={offer.image_url} alt={offer.title} className="w-full h-24 object-cover" />
+            )}
+            <div className="p-4">
+              {!offer.image_url && (
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="h-8 w-8 rounded-lg bg-secondary/10 flex items-center justify-center">
+                    <Tag className="h-4 w-4 text-secondary" />
+                  </div>
+                </div>
+              )}
+              <h3 className="font-semibold text-sm">{offer.title}</h3>
+              <p className="text-xs text-muted-foreground mt-1">{offer.description}</p>
             </div>
-            <h3 className="font-semibold text-sm">{offer.title}</h3>
-            <p className="text-xs text-muted-foreground mt-1">{offer.description}</p>
           </motion.div>
         ))}
       </div>

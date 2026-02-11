@@ -16,6 +16,7 @@ export function AnnouncementBanner() {
 
   const [bannerTitle, setBannerTitle] = useState("مرحباً بك في منصة تعليم");
   const [bannerDesc, setBannerDesc] = useState("أفضل منصة للدروس الخصوصية عبر الإنترنت");
+  const [bannerImage, setBannerImage] = useState("");
 
   useEffect(() => {
     supabase
@@ -28,11 +29,12 @@ export function AnnouncementBanner() {
       });
 
     // Load banner settings
-    supabase.from("site_settings").select("key, value").in("key", ["home_banner_title", "home_banner_description"])
+    supabase.from("site_settings").select("key, value").in("key", ["home_banner_title", "home_banner_description", "home_banner_image"])
       .then(({ data }) => {
         data?.forEach(s => {
           if (s.key === "home_banner_title" && typeof s.value === "string") setBannerTitle(s.value);
           if (s.key === "home_banner_description" && typeof s.value === "string") setBannerDesc(s.value);
+          if (s.key === "home_banner_image" && typeof s.value === "string") setBannerImage(s.value);
         });
       });
   }, []);
@@ -47,9 +49,14 @@ export function AnnouncementBanner() {
 
   if (announcements.length === 0) {
     return (
-      <div className="relative overflow-hidden rounded-xl mx-4 mt-4 gradient-hero p-8 text-primary-foreground">
-        <h2 className="text-2xl font-bold mb-2">{bannerTitle}</h2>
-        <p className="text-primary-foreground/80">{bannerDesc}</p>
+      <div className="relative overflow-hidden rounded-xl mx-4 mt-4 h-40">
+        {bannerImage ? (
+          <img src={bannerImage} alt="" className="absolute inset-0 w-full h-full object-cover rounded-xl" />
+        ) : null}
+        <div className={`relative h-full rounded-xl p-8 text-primary-foreground flex flex-col justify-center ${bannerImage ? "bg-black/40" : "gradient-hero"}`}>
+          <h2 className="text-2xl font-bold mb-2">{bannerTitle}</h2>
+          <p className="text-primary-foreground/80">{bannerDesc}</p>
+        </div>
       </div>
     );
   }
