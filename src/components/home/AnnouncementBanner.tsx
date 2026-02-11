@@ -1,0 +1,74 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+interface Announcement {
+  id: string;
+  title: string;
+  description: string | null;
+  image_url: string | null;
+}
+
+export function AnnouncementBanner() {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [current, setCurrent] = useState(0);
+
+  useEffect(() => {
+    supabase
+      .from("announcements")
+      .select("*")
+      .eq("is_active", true)
+      .order("display_order")
+      .then(({ data }) => {
+        if (data && data.length > 0) setAnnouncements(data);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (announcements.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrent((c) => (c + 1) % announcements.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [announcements.length]);
+
+  if (announcements.length === 0) {
+    return (
+      <div className="relative overflow-hidden rounded-xl mx-4 mt-4 gradient-hero p-8 text-primary-foreground">
+        <h2 className="text-2xl font-bold mb-2">مرحباً بك في منصة تعليم</h2>
+        <p className="text-primary-foreground/80">أفضل منصة للدروس الخصوصية عبر الإنترنت</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative overflow-hidden rounded-xl mx-4 mt-4 h-40">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={current}
+          initial={{ opacity: 0, x: 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -50 }}
+          className="absolute inset-0 gradient-hero rounded-xl p-6 flex flex-col justify-center text-primary-foreground"
+        >
+          <h3 className="text-xl font-bold">{announcements[current].title}</h3>
+          {announcements[current].description && (
+            <p className="text-sm mt-1 text-primary-foreground/80">{announcements[current].description}</p>
+          )}
+        </motion.div>
+      </AnimatePresence>
+      {announcements.length > 1 && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+          {announcements.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrent(i)}
+              className={`w-2 h-2 rounded-full transition-all ${i === current ? "bg-primary-foreground w-5" : "bg-primary-foreground/40"}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
