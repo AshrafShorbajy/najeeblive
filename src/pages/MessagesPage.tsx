@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Send } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export default function MessagesPage() {
   const { user } = useAuthContext();
@@ -65,6 +66,11 @@ export default function MessagesPage() {
     return (conv as any).student?.full_name ?? "طالب";
   };
 
+  const getConvStatus = (conv: any) => {
+    const status = (conv.bookings as any)?.status;
+    return status === "completed" ? "completed" : "active";
+  };
+
   const activeConvData = conversations.find(c => c.id === activeConv);
   const bookingStatus = (activeConvData?.bookings as any)?.status;
   const isReadOnly = user && activeConvData?.student_id === user.id && bookingStatus === "completed";
@@ -84,8 +90,11 @@ export default function MessagesPage() {
                   <button
                     key={c.id}
                     onClick={() => setActiveConv(c.id)}
-                    className={`w-full text-right p-3 rounded-lg transition-colors ${activeConv === c.id ? "bg-primary/10 text-primary" : "hover:bg-muted"}`}
+                    className={`w-full text-right p-3 rounded-lg transition-colors flex items-center justify-between ${activeConv === c.id ? "bg-primary/10 text-primary" : "hover:bg-muted"}`}
                   >
+                    <Badge variant={getConvStatus(c) === "active" ? "default" : "secondary"} className="text-[10px]">
+                      {getConvStatus(c) === "active" ? "نشط" : "منتهي"}
+                    </Badge>
                     <p className="font-medium text-sm">{getOtherName(c)}</p>
                   </button>
                 ))}
