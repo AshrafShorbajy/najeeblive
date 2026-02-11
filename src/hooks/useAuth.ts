@@ -8,9 +8,9 @@ export function useAuth() {
   const [roles, setRoles] = useState<string[]>([]);
 
   useEffect(() => {
-    let initialized = false;
+    let isMounted = true;
 
-    const fetchRoles = async (userId: string) => {
+    const fetchRoles = async (userId: string): Promise<string[]> => {
       try {
         const { data, error } = await supabase
           .from("user_roles")
@@ -27,58 +27,45 @@ export function useAuth() {
       }
     };
 
-    // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (initialized) return;
-      initialized = true;
-      
-      try {
+    // Listen for ONGOING auth changes (does NOT control loading)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!isMounted) return;
         setUser(session?.user ?? null);
         if (session?.user) {
-          const userRoles = await fetchRoles(session.user.id);
-          setRoles(userRoles);
-        }
-      } catch (err) {
-        console.error("getSession error:", err);
-      } finally {
-        setLoading(false);
-      }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!initialized) {
-          initialized = true;
-        }
-        
-        try {
-          setUser(session?.user ?? null);
-          if (session?.user) {
-            const userRoles = await fetchRoles(session.user.id);
-            setRoles(userRoles);
-          } else {
-            setRoles([]);
-          }
-        } catch (err) {
-          console.error("onAuthStateChange error:", err);
-        } finally {
-          setLoading(false);
+          fetchRoles(session.user.id).then((r) => {
+            if (isMounted) setRoles(r);
+          });
+        } else {
+          setRoles([]);
         }
       }
     );
 
-    // Safety timeout
-    const timeout = setTimeout(() => {
-      if (!initialized) {
-        initialized = true;
-        setLoading(false);
+    // INITIAL load - fetch roles BEFORE setting loading false
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted) return;
+
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          const userRoles = await fetchRoles(session.user.id);
+          if (isMounted) setRoles(userRoles);
+        }
+      } catch (err) {
+        console.error("initializeAuth error:", err);
+      } finally {
+        if (isMounted) setLoading(false);
       }
-    }, 5000);
+    };
+
+    initializeAuth();
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
-      clearTimeout(timeout);
     };
   }, []);
 
