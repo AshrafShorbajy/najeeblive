@@ -576,6 +576,7 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <Label className="text-xs">صورة البانر</Label>
+                  <p className="text-[10px] text-muted-foreground mb-1">الحجم المقترح: 1200×400 بكسل (نسبة 3:1) — بصيغة JPG أو PNG — أقصى حجم 2 ميجابايت</p>
                   <div className="flex items-center gap-3 mt-1">
                     <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors">
                       <ImagePlus className="h-4 w-4 text-muted-foreground" />
@@ -608,6 +609,7 @@ export default function AdminDashboard() {
                     </div>
                     <Input placeholder="عنوان العرض" value={offer.title} onChange={e => updateOffer(i, "title", e.target.value)} />
                     <Input placeholder="وصف العرض" value={offer.description} onChange={e => updateOffer(i, "description", e.target.value)} />
+                    <p className="text-[10px] text-muted-foreground">الحجم المقترح: 600×300 بكسل (نسبة 2:1) — JPG أو PNG — أقصى 1 ميجابايت</p>
                     <div className="flex items-center gap-2">
                       <label className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors">
                         <ImagePlus className="h-3 w-3 text-muted-foreground" />
