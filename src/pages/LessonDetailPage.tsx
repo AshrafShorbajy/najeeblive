@@ -160,9 +160,14 @@ export default function LessonDetailPage() {
                     <p className="text-sm text-muted-foreground">{lesson.description}</p>
                   </div>
                 )}
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span>المعلم: {teacher?.full_name ?? "..."}</span>
+                <div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span>المعلم: {teacher?.full_name ?? "..."}</span>
+                  </div>
+                  {teacher?.bio && (
+                    <p className="text-sm text-muted-foreground mt-1 mr-6">{teacher.bio}</p>
+                  )}
                 </div>
                 {lesson.notes && (
                   <div>
