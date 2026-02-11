@@ -12,7 +12,7 @@ import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, D
 import TeachersManagement from "@/components/admin/TeachersManagement";
 
 export default function AdminDashboard() {
-  const { user, isAdmin, isSupervisor, signOut } = useAuthContext();
+  const { user, loading, isAdmin, isSupervisor, signOut } = useAuthContext();
   const [dataLoading, setDataLoading] = useState(true);
   const navigate = useNavigate();
   const [stats, setStats] = useState({ students: 0, teachers: 0, lessons: 0, income: 0 });
@@ -33,14 +33,14 @@ export default function AdminDashboard() {
   const [announcementDesc, setAnnouncementDesc] = useState("");
 
   useEffect(() => {
-    if (!user) return;
-    if (!isAdmin && !isSupervisor) {
+    if (loading) return;
+    if (!user || (!isAdmin && !isSupervisor)) {
       navigate("/");
       return;
     }
     setDataLoading(true);
     loadData().finally(() => setDataLoading(false));
-  }, [user, isAdmin, isSupervisor]);
+  }, [user, loading, isAdmin, isSupervisor]);
 
   const loadData = async () => {
     const [curricRes, gradeRes, subjectRes, skillRes, announcRes, studentsRes, teachersRes] = await Promise.all([
