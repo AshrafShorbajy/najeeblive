@@ -47,23 +47,39 @@ export default function MessagesPage() {
   }, [user]);
 
   useEffect(() => {
-    if (!activeConv) return;
+    if (!activeConv || !user) return;
     supabase
       .from("messages")
       .select("*")
       .eq("conversation_id", activeConv)
       .order("created_at")
-      .then(({ data }) => setMessages(data ?? []));
+      .then(({ data }) => {
+        setMessages(data ?? []);
+        // Mark unread messages from others as read
+        if (data && data.length > 0) {
+          const unreadIds = data.filter(m => m.sender_id !== user.id && !m.is_read).map(m => m.id);
+          if (unreadIds.length > 0) {
+            supabase.from("messages").update({ is_read: true }).in("id", unreadIds).then();
+          }
+        }
+      });
 
     const channel = supabase
       .channel(`messages-${activeConv}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${activeConv}` },
-        (payload) => setMessages((prev) => [...prev, payload.new as any])
+        (payload) => {
+          const msg = payload.new as any;
+          setMessages((prev) => [...prev, msg]);
+          // Auto-mark incoming messages as read if from the other person
+          if (msg.sender_id !== user.id && !msg.is_read) {
+            supabase.from("messages").update({ is_read: true }).eq("id", msg.id).then();
+          }
+        }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [activeConv]);
+  }, [activeConv, user]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
