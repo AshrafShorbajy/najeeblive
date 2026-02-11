@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench } from "lucide-react";
+import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench, ImagePlus } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import TeachersManagement from "@/components/admin/TeachersManagement";
@@ -44,7 +44,8 @@ export default function AdminDashboard() {
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [bannerTitle, setBannerTitle] = useState("");
   const [bannerDesc, setBannerDesc] = useState("");
-  const [offers, setOffers] = useState<{title: string; description: string}[]>([]);
+  const [bannerImage, setBannerImage] = useState("");
+  const [offers, setOffers] = useState<{title: string; description: string; image_url?: string}[]>([]);
   const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
@@ -136,6 +137,7 @@ export default function AdminDashboard() {
         if (s.key === "maintenance_mode") setMaintenanceMode(s.value === true);
         if (s.key === "home_banner_title") setBannerTitle(typeof s.value === "string" ? s.value : "");
         if (s.key === "home_banner_description") setBannerDesc(typeof s.value === "string" ? s.value : "");
+        if (s.key === "home_banner_image") setBannerImage(typeof s.value === "string" ? s.value : "");
         if (s.key === "offers") setOffers(Array.isArray(s.value) ? s.value as any : []);
       }
     }
@@ -211,12 +213,39 @@ export default function AdminDashboard() {
     loadData();
   };
 
+  const uploadImage = async (file: File, folder: string): Promise<string | null> => {
+    const path = `${folder}/${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from("uploads").upload(path, file);
+    if (error) { toast.error("خطأ في رفع الصورة"); return null; }
+    const { data: { publicUrl } } = supabase.storage.from("uploads").getPublicUrl(path);
+    return publicUrl;
+  };
+
+  const handleBannerImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = await uploadImage(file, "banners");
+    if (url) setBannerImage(url);
+  };
+
+  const handleOfferImageUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = await uploadImage(file, "offers");
+    if (url) {
+      const updated = [...offers];
+      updated[index] = { ...updated[index], image_url: url };
+      setOffers(updated);
+    }
+  };
+
   const saveSiteSettings = async () => {
     setSavingSettings(true);
     const updates = [
       supabase.from("site_settings").update({ value: maintenanceMode } as any).eq("key", "maintenance_mode"),
       supabase.from("site_settings").update({ value: bannerTitle } as any).eq("key", "home_banner_title"),
       supabase.from("site_settings").update({ value: bannerDesc } as any).eq("key", "home_banner_description"),
+      supabase.from("site_settings").update({ value: bannerImage } as any).eq("key", "home_banner_image"),
       supabase.from("site_settings").update({ value: offers } as any).eq("key", "offers"),
     ];
     const results = await Promise.all(updates);
@@ -227,7 +256,7 @@ export default function AdminDashboard() {
   };
 
   const addOffer = () => {
-    setOffers([...offers, { title: "", description: "" }]);
+    setOffers([...offers, { title: "", description: "", image_url: "" }]);
   };
 
   const removeOffer = (index: number) => {
@@ -541,6 +570,22 @@ export default function AdminDashboard() {
                   <Label className="text-xs">وصف البانر</Label>
                   <Input value={bannerDesc} onChange={e => setBannerDesc(e.target.value)} />
                 </div>
+                <div>
+                  <Label className="text-xs">صورة البانر</Label>
+                  <div className="flex items-center gap-3 mt-1">
+                    <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors">
+                      <ImagePlus className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">اختر صورة</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleBannerImageUpload} />
+                    </label>
+                    {bannerImage && (
+                      <div className="relative">
+                        <img src={bannerImage} alt="بانر" className="h-16 w-28 object-cover rounded-lg" />
+                        <button onClick={() => setBannerImage("")} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-4 w-4 flex items-center justify-center text-[10px]">×</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Offers Settings */}
@@ -559,6 +604,19 @@ export default function AdminDashboard() {
                     </div>
                     <Input placeholder="عنوان العرض" value={offer.title} onChange={e => updateOffer(i, "title", e.target.value)} />
                     <Input placeholder="وصف العرض" value={offer.description} onChange={e => updateOffer(i, "description", e.target.value)} />
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors">
+                        <ImagePlus className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-[10px] text-muted-foreground">صورة</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={e => handleOfferImageUpload(i, e)} />
+                      </label>
+                      {offer.image_url && (
+                        <div className="relative">
+                          <img src={offer.image_url} alt="" className="h-10 w-16 object-cover rounded" />
+                          <button onClick={() => { const u = [...offers]; u[i] = { ...u[i], image_url: "" }; setOffers(u); }} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-3.5 w-3.5 flex items-center justify-center text-[8px]">×</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
