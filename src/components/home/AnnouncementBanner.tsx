@@ -53,9 +53,9 @@ export function AnnouncementBanner() {
         {bannerImage ? (
           <img src={bannerImage} alt="" className="absolute inset-0 w-full h-full object-cover rounded-xl" />
         ) : null}
-        <div className={`relative h-full rounded-xl p-8 text-primary-foreground flex flex-col justify-center ${bannerImage ? "bg-black/40" : "gradient-hero"}`}>
+        <div className={`relative h-full rounded-xl p-8 text-foreground flex flex-col justify-center ${bannerImage ? "bg-black/40" : "gradient-hero"}`}>
           <h2 className="text-2xl font-bold mb-2">{bannerTitle}</h2>
-          <p className="text-primary-foreground/80">{bannerDesc}</p>
+          <p className="text-foreground/70">{bannerDesc}</p>
         </div>
       </div>
     );
@@ -69,11 +69,11 @@ export function AnnouncementBanner() {
           initial={{ opacity: 0, x: 50 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -50 }}
-          className="absolute inset-0 gradient-hero rounded-xl p-6 flex flex-col justify-center text-primary-foreground"
+          className="absolute inset-0 gradient-hero rounded-xl p-6 flex flex-col justify-center text-foreground"
         >
           <h3 className="text-xl font-bold">{announcements[current].title}</h3>
           {announcements[current].description && (
-            <p className="text-sm mt-1 text-primary-foreground/80">{announcements[current].description}</p>
+            <p className="text-sm mt-1 text-foreground/70">{announcements[current].description}</p>
           )}
         </motion.div>
       </AnimatePresence>
