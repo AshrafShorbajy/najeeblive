@@ -34,13 +34,18 @@ export default function TeacherDashboard() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editLesson, setEditLesson] = useState<any>(null);
+  const [bio, setBio] = useState("");
+  const [savingBio, setSavingBio] = useState(false);
   const [scheduleBookingId, setScheduleBookingId] = useState<string | null>(null);
   const [scheduleDate, setScheduleDate] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("profiles").select("*").eq("user_id", user.id).single().then(({ data }) => setProfile(data));
+    supabase.from("profiles").select("*").eq("user_id", user.id).single().then(({ data }) => {
+      setProfile(data);
+      setBio(data?.bio || "");
+    });
     fetchLessons();
     fetchBookings();
     supabase.from("curricula").select("*").then(({ data }) => setCurricula(data ?? []));
@@ -245,6 +250,30 @@ export default function TeacherDashboard() {
               <p className="text-sm"><strong>الاسم:</strong> {profile?.full_name}</p>
               <p className="text-sm"><strong>الهاتف:</strong> {profile?.phone ?? "غير محدد"}</p>
               <p className="text-sm"><strong>البريد:</strong> {user?.email}</p>
+            </div>
+            <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+              <Label className="font-semibold">نبذة عنك (بايو)</Label>
+              <Textarea
+                placeholder="اكتب نبذة مختصرة عن نفسك وخبراتك..."
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                rows={4}
+              />
+              <Button
+                variant="hero"
+                className="w-full"
+                disabled={savingBio}
+                onClick={async () => {
+                  if (!user) return;
+                  setSavingBio(true);
+                  const { error } = await supabase.from("profiles").update({ bio }).eq("user_id", user.id);
+                  if (error) toast.error("خطأ في حفظ البايو");
+                  else toast.success("تم حفظ البايو بنجاح");
+                  setSavingBio(false);
+                }}
+              >
+                {savingBio ? "جارٍ الحفظ..." : "حفظ البايو"}
+              </Button>
             </div>
           </TabsContent>
 
