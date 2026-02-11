@@ -91,10 +91,21 @@ export default function ProfilePage() {
           </Accordion>
         </div>
 
-        <Button onClick={handleSignOut} variant="destructive" className="w-full">
-          <LogOut className="h-4 w-4 ml-2" />
+        <button
+          type="button"
+          onClick={() => {
+            console.log("LOGOUT CLICKED");
+            supabase.auth.signOut({ scope: 'local' }).then(() => {
+              window.location.href = "/";
+            }).catch(() => {
+              window.location.href = "/";
+            });
+          }}
+          className="w-full bg-destructive text-destructive-foreground rounded-lg py-3 font-medium flex items-center justify-center gap-2"
+        >
+          <LogOut className="h-4 w-4" />
           تسجيل الخروج
-        </Button>
+        </button>
       </div>
     </AppLayout>
   );
