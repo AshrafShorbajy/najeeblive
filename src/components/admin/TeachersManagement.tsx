@@ -43,13 +43,16 @@ export default function TeachersManagement() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const [profilesRes, rolesRes, lessonsRes, bookingsRes, reviewsRes] = await Promise.all([
+      const [profilesRes, rolesRes, lessonsRes, bookingsRes, reviewsRes, emailsRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, phone, bio, avatar_url, created_at"),
         supabase.from("user_roles").select("id, user_id, role, admin_notes"),
         supabase.from("lessons").select("id, teacher_id"),
         supabase.from("bookings").select("teacher_id, amount, status"),
         supabase.from("reviews").select("teacher_id, rating"),
+        supabase.functions.invoke("get-user-emails"),
       ]);
+
+      const emailMap: Record<string, string> = emailsRes.data?.emails ?? {};
 
       const profiles = profilesRes.data ?? [];
       const roles = rolesRes.data ?? [];
@@ -98,6 +101,7 @@ export default function TeachersManagement() {
           bio: p.bio,
           avatar_url: p.avatar_url,
           created_at: p.created_at,
+          email: emailMap[p.user_id] ?? "",
           isTeacher: roleData?.roles.includes("teacher") ?? false,
           roleId: roleData?.teacherRoleId,
           admin_notes: roleData?.admin_notes ?? "",
@@ -143,7 +147,7 @@ export default function TeachersManagement() {
       return true;
     })
     .filter(u =>
-      u.full_name.includes(search) || u.phone?.includes(search) || u.user_id.includes(search)
+      u.full_name.includes(search) || u.phone?.includes(search) || u.email?.includes(search) || u.user_id.includes(search)
     );
 
   const teacherCount = users.filter(u => u.isTeacher).length;
@@ -208,7 +212,7 @@ export default function TeachersManagement() {
                   <p className="font-medium text-sm truncate">{u.full_name}</p>
                   {u.isTeacher && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">معلم</Badge>}
                 </div>
-                <p className="text-xs text-muted-foreground">{u.phone ?? "بدون رقم"}</p>
+                <p className="text-xs text-muted-foreground">{u.email || u.phone || "بدون بيانات"}</p>
               </div>
               {u.isTeacher && (
                 <div className="flex gap-3 text-[10px] text-muted-foreground shrink-0">
@@ -249,7 +253,13 @@ export default function TeachersManagement() {
 
               {/* Info section */}
               <div className="space-y-3 mt-2">
-                <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="grid grid-cols-1 gap-2 text-sm">
+                  {selectedUser.email && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Mail className="h-3.5 w-3.5" />
+                      <span className="truncate">{selectedUser.email}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Phone className="h-3.5 w-3.5" />
                     <span>{selectedUser.phone ?? "غير متوفر"}</span>
