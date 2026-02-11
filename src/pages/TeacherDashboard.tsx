@@ -46,6 +46,7 @@ export default function TeacherDashboard() {
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [teacherNewMsg, setTeacherNewMsg] = useState("");
   const teacherMsgEndRef = useRef<HTMLDivElement>(null);
+  const [teacherUnreadCount, setTeacherUnreadCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -60,6 +61,36 @@ export default function TeacherDashboard() {
     supabase.from("withdrawal_requests").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false })
       .then(({ data }) => setWithdrawals(data ?? []));
     fetchTeacherConversations();
+    fetchTeacherUnread();
+  }, [user]);
+
+  const fetchTeacherUnread = async () => {
+    if (!user) return;
+    const { data: convs } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("teacher_id", user.id);
+    if (!convs || convs.length === 0) { setTeacherUnreadCount(0); return; }
+    const convIds = convs.map(c => c.id);
+    const { count } = await supabase
+      .from("messages")
+      .select("*", { count: "exact", head: true })
+      .in("conversation_id", convIds)
+      .neq("sender_id", user.id)
+      .eq("is_read", false);
+    setTeacherUnreadCount(count ?? 0);
+  };
+
+  // Realtime for teacher unread count
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel("teacher-unread-dash")
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" },
+        () => fetchTeacherUnread()
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const fetchTeacherConversations = async () => {
@@ -84,6 +115,14 @@ export default function TeacherDashboard() {
     setActiveConvId(convId);
     const { data } = await supabase.from("messages").select("*").eq("conversation_id", convId).order("created_at");
     setChatMessages(data ?? []);
+    // Mark unread messages as read
+    if (data && user) {
+      const unreadIds = data.filter(m => m.sender_id !== user.id && !m.is_read).map(m => m.id);
+      if (unreadIds.length > 0) {
+        await supabase.from("messages").update({ is_read: true }).in("id", unreadIds);
+        fetchTeacherUnread();
+      }
+    }
   };
 
   const sendTeacherMessage = async () => {
@@ -300,7 +339,14 @@ export default function TeacherDashboard() {
             <TabsTrigger value="profile" className="flex-1">المعلومات</TabsTrigger>
             <TabsTrigger value="lessons" className="flex-1">الحصص</TabsTrigger>
             <TabsTrigger value="bookings" className="flex-1">الطلبات</TabsTrigger>
-            <TabsTrigger value="messages" className="flex-1">الرسائل</TabsTrigger>
+            <TabsTrigger value="messages" className="flex-1 relative">
+              الرسائل
+              {teacherUnreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                  {teacherUnreadCount > 99 ? "99+" : teacherUnreadCount}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="earnings" className="flex-1">الأرباح</TabsTrigger>
           </TabsList>
 
