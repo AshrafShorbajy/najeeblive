@@ -53,7 +53,7 @@ export default function AdminDashboard() {
     const [curricRes, gradeRes, subjectRes, skillRes, announcRes, studentsRes, teachersRes] = await Promise.all([
       supabase.from("curricula").select("*"),
       supabase.from("grade_levels").select("*, curricula(name)"),
-      supabase.from("subjects").select("*, grade_levels(name)"),
+      supabase.from("subjects").select("*, grade_levels(name, curricula(name))"),
       supabase.from("skills_categories").select("*"),
       supabase.from("announcements").select("*").order("display_order"),
       supabase.from("user_roles").select("*").eq("role", "student"),
@@ -388,7 +388,7 @@ export default function AdminDashboard() {
                 <div key={s.id} className="bg-card rounded-lg p-3 border border-border flex justify-between items-center">
                   <div>
                     <span className="font-medium text-sm">{s.name}</span>
-                    <span className="text-xs text-muted-foreground mr-2">({(s as any).grade_levels?.name})</span>
+                    <span className="text-xs text-muted-foreground mr-2">({(s as any).grade_levels?.name}) منهج {(s as any).grade_levels?.curricula?.name}</span>
                   </div>
                   <Button variant="ghost" size="icon" onClick={() => deleteItem("subjects", s.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
