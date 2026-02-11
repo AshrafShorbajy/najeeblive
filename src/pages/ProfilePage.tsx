@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { LogOut, ChevronLeft } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 const faqs = [
   { q: "كيف أحجز حصة؟", a: "اختر نوع الدرس، ثم اختر المعلم المناسب، وقم بشراء الحصة." },
@@ -44,14 +44,16 @@ export default function ProfilePage() {
   };
 
   const handleSignOut = async () => {
-    const { error } = await signOut();
-    if (!error) {
+    try {
+      await supabase.auth.signOut();
       navigate("/");
+    } catch (err) {
+      console.error("Sign out error:", err);
+      toast.error("حدث خطأ أثناء تسجيل الخروج");
     }
   };
 
   if (!user) {
-    navigate("/auth");
     return null;
   }
 
