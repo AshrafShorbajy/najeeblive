@@ -55,11 +55,19 @@ export default function TeacherDashboard() {
 
   const fetchBookings = async () => {
     if (!user) return;
-    const { data } = await supabase.from("bookings")
+    const { data, error } = await supabase.from("bookings")
       .select("*, lessons(title)")
       .eq("teacher_id", user.id)
       .order("created_at", { ascending: false });
     
+    console.log("Bookings fetch result:", { data, error, userId: user.id });
+    
+    if (error) {
+      console.error("Bookings fetch error:", error);
+      toast.error("خطأ في جلب الطلبات: " + error.message);
+      return;
+    }
+
     // Fetch student names from profiles
     const studentIds = [...new Set((data ?? []).map((b) => b.student_id))];
     let studentNames: Record<string, string> = {};
@@ -275,40 +283,44 @@ export default function TeacherDashboard() {
           </TabsContent>
 
           <TabsContent value="bookings" className="mt-4 space-y-3">
-            {bookings.map((b) => (
-              <div key={b.id} className="bg-card rounded-xl p-4 border border-border">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="font-semibold text-sm">{(b as any).lessons?.title}</h3>
-                    <p className="text-xs text-muted-foreground">الطالب: {b.student_name}</p>
+            {bookings.length === 0 ? (
+              <p className="text-center text-muted-foreground py-12">لا توجد طلبات حتى الآن</p>
+            ) : (
+              bookings.map((b) => (
+                <div key={b.id} className="bg-card rounded-xl p-4 border border-border">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-semibold text-sm">{(b as any).lessons?.title}</h3>
+                      <p className="text-xs text-muted-foreground">الطالب: {b.student_name}</p>
+                    </div>
+                    <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
+                      {b.status === "pending" ? "في الانتظار" : b.status === "scheduled" ? "مجدول" : b.status === "completed" ? "مكتمل" : b.status}
+                    </span>
                   </div>
-                  <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-                    {b.status === "pending" ? "في الانتظار" : b.status === "scheduled" ? "مجدول" : b.status === "completed" ? "مكتمل" : b.status}
-                  </span>
+                  {b.status === "pending" && (
+                    <Button size="sm" variant="hero" onClick={() => handleAcceptBooking(b.id)} className="w-full">
+                      <CheckCircle className="h-4 w-4 ml-1" />
+                      قبول وجدولة
+                    </Button>
+                  )}
+                  {scheduleBookingId === b.id && (
+                    <div className="mt-3 space-y-2">
+                      <Label>اختر موعد الحصة</Label>
+                      <Input type="datetime-local" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} dir="ltr" />
+                      <Button onClick={handleScheduleBooking} size="sm" className="w-full">تأكيد الموعد</Button>
+                    </div>
+                  )}
+                  {b.scheduled_at && (
+                    <p className="text-xs text-muted-foreground mt-2">الموعد: {new Date(b.scheduled_at).toLocaleString("ar")}</p>
+                  )}
+                  {b.zoom_start_url && b.status === "scheduled" && (
+                    <a href={b.zoom_start_url} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="accent" className="w-full mt-2">بدء الحصة (زوم)</Button>
+                    </a>
+                  )}
                 </div>
-                {b.status === "pending" && (
-                  <Button size="sm" variant="hero" onClick={() => handleAcceptBooking(b.id)} className="w-full">
-                    <CheckCircle className="h-4 w-4 ml-1" />
-                    قبول وجدولة
-                  </Button>
-                )}
-                {scheduleBookingId === b.id && (
-                  <div className="mt-3 space-y-2">
-                    <Label>اختر موعد الحصة</Label>
-                    <Input type="datetime-local" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} dir="ltr" />
-                    <Button onClick={handleScheduleBooking} size="sm" className="w-full">تأكيد الموعد</Button>
-                  </div>
-                )}
-                {b.scheduled_at && (
-                  <p className="text-xs text-muted-foreground mt-2">الموعد: {new Date(b.scheduled_at).toLocaleString("ar")}</p>
-                )}
-                {b.zoom_start_url && b.status === "scheduled" && (
-                  <a href={b.zoom_start_url} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="accent" className="w-full mt-2">بدء الحصة (زوم)</Button>
-                  </a>
-                )}
-              </div>
-            ))}
+              ))
+            )}
           </TabsContent>
 
           <TabsContent value="earnings" className="mt-4 space-y-4">
