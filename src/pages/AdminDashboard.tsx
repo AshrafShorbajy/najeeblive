@@ -376,7 +376,7 @@ export default function AdminDashboard() {
               <select className="w-full rounded-lg border border-border p-2 bg-background text-sm"
                 value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)}>
                 <option value="">اختر الصف</option>
-                {gradeLevels.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                {gradeLevels.map((g) => <option key={g.id} value={g.id}>{g.name} - {(g as any).curricula?.name ?? ""}</option>)}
               </select>
               <div className="flex gap-2">
                 <Input placeholder="اسم المادة" value={newName} onChange={(e) => setNewName(e.target.value)} />
