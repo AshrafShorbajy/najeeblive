@@ -1,14 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Video, Clock, CheckCircle, User } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Video, Clock, CheckCircle, User, MessageCircle, Send, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SchedulePage() {
   const { user, isTeacher } = useAuthContext();
   const [bookings, setBookings] = useState<any[]>([]);
+  const [chatBookingId, setChatBookingId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [newMsg, setNewMsg] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -20,7 +26,6 @@ export default function SchedulePage() {
         .order("scheduled_at", { ascending: true });
 
       const items = data ?? [];
-      // Fetch teacher names for student's bookings
       const teacherIds = [...new Set(items.filter(b => b.student_id === user.id).map(b => b.teacher_id))];
       let teacherMap: Record<string, string> = {};
       if (teacherIds.length > 0) {
@@ -35,27 +40,131 @@ export default function SchedulePage() {
     loadBookings();
   }, [user]);
 
+  // Open chat for a booking
+  const openChat = async (booking: any) => {
+    if (!user) return;
+    setChatBookingId(booking.id);
+
+    // Find or create conversation for this booking
+    const { data: existing } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("booking_id", booking.id)
+      .maybeSingle();
+
+    if (existing) {
+      setConversationId(existing.id);
+      loadMessages(existing.id);
+    } else {
+      const { data: created, error } = await supabase.from("conversations").insert({
+        student_id: booking.student_id,
+        teacher_id: booking.teacher_id,
+        booking_id: booking.id,
+      }).select("id").single();
+      if (error) {
+        toast.error("خطأ في فتح المحادثة");
+        return;
+      }
+      setConversationId(created.id);
+      setMessages([]);
+    }
+  };
+
+  const loadMessages = async (convId: string) => {
+    const { data } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", convId)
+      .order("created_at");
+    setMessages(data ?? []);
+  };
+
+  // Realtime subscription for messages
+  useEffect(() => {
+    if (!conversationId) return;
+    const channel = supabase
+      .channel(`schedule-msgs-${conversationId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
+        (payload) => setMessages(prev => [...prev, payload.new as any])
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [conversationId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const sendMessage = async () => {
+    if (!newMsg.trim() || !conversationId || !user) return;
+    await supabase.from("messages").insert({
+      conversation_id: conversationId,
+      sender_id: user.id,
+      content: newMsg.trim(),
+    });
+    setNewMsg("");
+  };
+
+  const currentBooking = bookings.find(b => b.id === chatBookingId);
+  const isChatReadOnly = currentBooking?.status === "completed";
+
   const statusLabel = (s: string) => {
-    const map: Record<string, string> = {
-      pending: "في الانتظار",
-      accepted: "مقبول",
-      scheduled: "مجدول",
-      completed: "مكتمل",
-      cancelled: "ملغي",
-    };
+    const map: Record<string, string> = { pending: "في الانتظار", accepted: "مقبول", scheduled: "مجدول", completed: "مكتمل", cancelled: "ملغي" };
     return map[s] ?? s;
   };
 
   const statusColor = (s: string) => {
-    const map: Record<string, string> = {
-      pending: "bg-warning/10 text-warning",
-      accepted: "bg-primary/10 text-primary",
-      scheduled: "bg-accent/10 text-accent",
-      completed: "bg-success/10 text-success",
-      cancelled: "bg-destructive/10 text-destructive",
-    };
+    const map: Record<string, string> = { pending: "bg-warning/10 text-warning", accepted: "bg-primary/10 text-primary", scheduled: "bg-accent/10 text-accent", completed: "bg-success/10 text-success", cancelled: "bg-destructive/10 text-destructive" };
     return map[s] ?? "";
   };
+
+  // Chat view
+  if (chatBookingId && conversationId !== null) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col h-[calc(100vh-8rem)]">
+          <div className="p-3 border-b border-border flex items-center gap-2">
+            <button onClick={() => { setChatBookingId(null); setConversationId(null); setMessages([]); }} className="text-sm text-primary flex items-center gap-1">
+              <ArrowRight className="h-4 w-4" />
+              رجوع
+            </button>
+            <span className="font-semibold text-sm flex-1">
+              محادثة: {currentBooking?.lessons?.title ?? "حصة"}
+            </span>
+            {isChatReadOnly && (
+              <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">للقراءة فقط</span>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {messages.length === 0 && (
+              <p className="text-center text-muted-foreground text-sm py-8">لا توجد رسائل بعد</p>
+            )}
+            {messages.map((m) => (
+              <div key={m.id} className={`flex ${m.sender_id === user?.id ? "justify-start" : "justify-end"}`}>
+                <div className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${m.sender_id === user?.id ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+          {!isChatReadOnly && (
+            <div className="p-3 border-t border-border flex gap-2">
+              <Input
+                value={newMsg}
+                onChange={(e) => setNewMsg(e.target.value)}
+                placeholder="اكتب رسالتك..."
+                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+              />
+              <Button onClick={sendMessage} size="icon" variant="hero">
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -114,11 +223,23 @@ export default function SchedulePage() {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <Button size="sm" variant="hero" className="w-full">
+                    <Button size="sm" variant="hero" className="w-full mb-2">
                       <Video className="h-4 w-4 ml-2" />
                       {b.teacher_id === user?.id ? "بدء الحصة (زوم)" : "دخول الحصة عبر زوم"}
                     </Button>
                   </a>
+                )}
+                {/* Chat button for student on scheduled/completed bookings */}
+                {b.student_id === user?.id && (b.status === "scheduled" || b.status === "completed") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => openChat(b)}
+                  >
+                    <MessageCircle className="h-4 w-4 ml-2" />
+                    {b.status === "scheduled" ? "مراسلة المعلم" : "عرض المحادثة"}
+                  </Button>
                 )}
               </div>
             ))}

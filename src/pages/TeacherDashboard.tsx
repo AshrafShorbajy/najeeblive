@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Edit, DollarSign, Calendar, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Edit, DollarSign, Calendar, CheckCircle, XCircle, MessageCircle, Send, ArrowRight } from "lucide-react";
 
 export default function TeacherDashboard() {
   const { user } = useAuthContext();
@@ -40,6 +40,13 @@ export default function TeacherDashboard() {
   const [scheduleDate, setScheduleDate] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
 
+  // Teacher messages state
+  const [teacherConversations, setTeacherConversations] = useState<any[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [teacherNewMsg, setTeacherNewMsg] = useState("");
+  const teacherMsgEndRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!user) return;
     supabase.from("profiles").select("*").eq("user_id", user.id).single().then(({ data }) => {
@@ -52,7 +59,58 @@ export default function TeacherDashboard() {
     supabase.from("skills_categories").select("*").then(({ data }) => setSkillCats(data ?? []));
     supabase.from("withdrawal_requests").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false })
       .then(({ data }) => setWithdrawals(data ?? []));
+    fetchTeacherConversations();
   }, [user]);
+
+  const fetchTeacherConversations = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("conversations")
+      .select("*, bookings:booking_id(id, status, lessons(title))")
+      .eq("teacher_id", user.id)
+      .order("created_at", { ascending: false });
+    
+    const convs = data ?? [];
+    const studentIds = [...new Set(convs.map(c => c.student_id))];
+    let nameMap: Record<string, string> = {};
+    if (studentIds.length > 0) {
+      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds);
+      profiles?.forEach(p => { nameMap[p.user_id] = p.full_name; });
+    }
+    setTeacherConversations(convs.map(c => ({ ...c, student_name: nameMap[c.student_id] || "طالب" })));
+  };
+
+  const openTeacherChat = async (convId: string) => {
+    setActiveConvId(convId);
+    const { data } = await supabase.from("messages").select("*").eq("conversation_id", convId).order("created_at");
+    setChatMessages(data ?? []);
+  };
+
+  const sendTeacherMessage = async () => {
+    if (!teacherNewMsg.trim() || !activeConvId || !user) return;
+    await supabase.from("messages").insert({
+      conversation_id: activeConvId,
+      sender_id: user.id,
+      content: teacherNewMsg.trim(),
+    });
+    setTeacherNewMsg("");
+  };
+
+  // Realtime for teacher chat
+  useEffect(() => {
+    if (!activeConvId) return;
+    const channel = supabase
+      .channel(`teacher-msgs-${activeConvId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${activeConvId}` },
+        (payload) => setChatMessages(prev => [...prev, payload.new as any])
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [activeConvId]);
+
+  useEffect(() => {
+    teacherMsgEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
   const fetchLessons = async () => {
     if (!user) return;
@@ -242,6 +300,7 @@ export default function TeacherDashboard() {
             <TabsTrigger value="profile" className="flex-1">المعلومات</TabsTrigger>
             <TabsTrigger value="lessons" className="flex-1">الحصص</TabsTrigger>
             <TabsTrigger value="bookings" className="flex-1">الطلبات</TabsTrigger>
+            <TabsTrigger value="messages" className="flex-1">الرسائل</TabsTrigger>
             <TabsTrigger value="earnings" className="flex-1">الأرباح</TabsTrigger>
           </TabsList>
 
@@ -495,6 +554,72 @@ export default function TeacherDashboard() {
                   )}
                 </div>
               ))
+            )}
+          </TabsContent>
+
+          {/* Messages Tab */}
+          <TabsContent value="messages" className="mt-4">
+            {activeConvId ? (
+              <div className="flex flex-col h-[60vh] bg-card rounded-xl border border-border overflow-hidden">
+                <div className="p-3 border-b border-border flex items-center gap-2">
+                  <button onClick={() => { setActiveConvId(null); setChatMessages([]); }} className="text-sm text-primary flex items-center gap-1">
+                    <ArrowRight className="h-4 w-4" />
+                    رجوع
+                  </button>
+                  <span className="font-semibold text-sm flex-1">
+                    {(() => {
+                      const conv = teacherConversations.find(c => c.id === activeConvId);
+                      return `${conv?.student_name} - ${(conv?.bookings as any)?.lessons?.title ?? "حصة"}`;
+                    })()}
+                  </span>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                  {chatMessages.length === 0 && (
+                    <p className="text-center text-muted-foreground text-sm py-8">لا توجد رسائل بعد</p>
+                  )}
+                  {chatMessages.map((m) => (
+                    <div key={m.id} className={`flex ${m.sender_id === user?.id ? "justify-start" : "justify-end"}`}>
+                      <div className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${m.sender_id === user?.id ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                        {m.content}
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={teacherMsgEndRef} />
+                </div>
+                <div className="p-3 border-t border-border flex gap-2">
+                  <Input
+                    value={teacherNewMsg}
+                    onChange={(e) => setTeacherNewMsg(e.target.value)}
+                    placeholder="اكتب ردك..."
+                    onKeyDown={(e) => e.key === "Enter" && sendTeacherMessage()}
+                  />
+                  <Button onClick={sendTeacherMessage} size="icon" variant="hero">
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {teacherConversations.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-12">لا توجد رسائل حتى الآن</p>
+                ) : (
+                  teacherConversations.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => openTeacherChat(c.id)}
+                      className="w-full text-right bg-card rounded-xl p-4 border border-border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-sm">{c.student_name}</p>
+                          <p className="text-xs text-muted-foreground">{(c.bookings as any)?.lessons?.title ?? "حصة"}</p>
+                        </div>
+                        <MessageCircle className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
             )}
           </TabsContent>
 

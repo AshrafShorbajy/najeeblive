@@ -16,11 +16,14 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("conversations")
-      .select("*, student:student_id(full_name), teacher:teacher_id(full_name)")
-      .or(`student_id.eq.${user.id},teacher_id.eq.${user.id}`)
-      .then(({ data }) => setConversations(data ?? []));
+    const loadConversations = async () => {
+      const { data } = await supabase
+        .from("conversations")
+        .select("*, student:student_id(full_name), teacher:teacher_id(full_name), bookings:booking_id(status)")
+        .or(`student_id.eq.${user.id},teacher_id.eq.${user.id}`);
+      setConversations(data ?? []);
+    };
+    loadConversations();
   }, [user]);
 
   useEffect(() => {
@@ -62,6 +65,10 @@ export default function MessagesPage() {
     return (conv as any).student?.full_name ?? "طالب";
   };
 
+  const activeConvData = conversations.find(c => c.id === activeConv);
+  const bookingStatus = (activeConvData?.bookings as any)?.status;
+  const isReadOnly = user && activeConvData?.student_id === user.id && bookingStatus === "completed";
+
   return (
     <AppLayout>
       <div className="flex h-[calc(100vh-8rem)]">
@@ -93,9 +100,12 @@ export default function MessagesPage() {
             <>
               <div className="p-3 border-b border-border flex items-center">
                 <button onClick={() => setActiveConv(null)} className="md:hidden text-sm text-primary ml-3">← رجوع</button>
-                <span className="font-semibold text-sm">
+                <span className="font-semibold text-sm flex-1">
                   {getOtherName(conversations.find((c) => c.id === activeConv))}
                 </span>
+                {isReadOnly && (
+                  <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">للقراءة فقط</span>
+                )}
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-2">
                 {messages.map((m) => (
@@ -107,17 +117,19 @@ export default function MessagesPage() {
                 ))}
                 <div ref={messagesEndRef} />
               </div>
-              <div className="p-3 border-t border-border flex gap-2">
-                <Input
-                  value={newMsg}
-                  onChange={(e) => setNewMsg(e.target.value)}
-                  placeholder="اكتب رسالتك..."
-                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                />
-                <Button onClick={sendMessage} size="icon" variant="hero">
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
+              {!isReadOnly && (
+                <div className="p-3 border-t border-border flex gap-2">
+                  <Input
+                    value={newMsg}
+                    onChange={(e) => setNewMsg(e.target.value)}
+                    placeholder="اكتب رسالتك..."
+                    onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                  />
+                  <Button onClick={sendMessage} size="icon" variant="hero">
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">

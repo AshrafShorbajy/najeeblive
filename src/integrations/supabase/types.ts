@@ -108,24 +108,35 @@ export type Database = {
       }
       conversations: {
         Row: {
+          booking_id: string | null
           created_at: string
           id: string
           student_id: string
           teacher_id: string
         }
         Insert: {
+          booking_id?: string | null
           created_at?: string
           id?: string
           student_id: string
           teacher_id: string
         }
         Update: {
+          booking_id?: string | null
           created_at?: string
           id?: string
           student_id?: string
           teacher_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "conversations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       curricula: {
         Row: {
