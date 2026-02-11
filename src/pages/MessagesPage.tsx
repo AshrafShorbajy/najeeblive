@@ -20,7 +20,7 @@ export default function MessagesPage() {
     const loadConversations = async () => {
       const { data } = await supabase
         .from("conversations")
-        .select("*, bookings:booking_id(status)")
+        .select("*, bookings:booking_id(status, lessons:lesson_id(title))")
         .or(`student_id.eq.${user.id},teacher_id.eq.${user.id}`);
       
       if (!data || data.length === 0) {
@@ -29,17 +29,23 @@ export default function MessagesPage() {
       }
 
       const userIds = [...new Set(data.flatMap(c => [c.student_id, c.teacher_id]))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .in("user_id", userIds);
+      const convIds = data.map(c => c.id);
+
+      const [{ data: profiles }, { data: unreadMsgs }] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name").in("user_id", userIds),
+        supabase.from("messages").select("conversation_id").in("conversation_id", convIds).neq("sender_id", user.id).eq("is_read", false),
+      ]);
       
       const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) ?? []);
+      const unreadMap = new Map<string, number>();
+      unreadMsgs?.forEach(m => unreadMap.set(m.conversation_id, (unreadMap.get(m.conversation_id) ?? 0) + 1));
       
       const enriched = data.map(c => ({
         ...c,
         student_name: profileMap.get(c.student_id) ?? "طالب",
         teacher_name: profileMap.get(c.teacher_id) ?? "معلم",
+        lesson_title: (c.bookings as any)?.lessons?.title ?? null,
+        unread_count: unreadMap.get(c.id) ?? 0,
       }));
       setConversations(enriched);
     };
@@ -55,11 +61,12 @@ export default function MessagesPage() {
       .order("created_at")
       .then(({ data }) => {
         setMessages(data ?? []);
-        // Mark unread messages from others as read
         if (data && data.length > 0) {
           const unreadIds = data.filter(m => m.sender_id !== user.id && !m.is_read).map(m => m.id);
           if (unreadIds.length > 0) {
-            supabase.from("messages").update({ is_read: true }).in("id", unreadIds).then();
+            supabase.from("messages").update({ is_read: true }).in("id", unreadIds).then(() => {
+              setConversations(prev => prev.map(c => c.id === activeConv ? { ...c, unread_count: 0 } : c));
+            });
           }
         }
       });
@@ -125,12 +132,24 @@ export default function MessagesPage() {
                   <button
                     key={c.id}
                     onClick={() => setActiveConv(c.id)}
-                    className={`w-full text-right p-3 rounded-lg transition-colors flex items-center justify-between ${activeConv === c.id ? "bg-primary/10 text-primary" : "hover:bg-muted"}`}
+                    className={`w-full text-right p-3 rounded-lg transition-colors ${activeConv === c.id ? "bg-primary/10 text-primary" : "hover:bg-muted"}`}
                   >
-                    <Badge variant={getConvStatus(c) === "active" ? "default" : "secondary"} className="text-[10px]">
-                      {getConvStatus(c) === "active" ? "نشط" : "منتهي"}
-                    </Badge>
-                    <p className="font-medium text-sm">{getOtherName(c)}</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        {c.unread_count > 0 && (
+                          <span className="bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                            {c.unread_count > 99 ? "99+" : c.unread_count}
+                          </span>
+                        )}
+                        <Badge variant={getConvStatus(c) === "active" ? "default" : "secondary"} className="text-[10px]">
+                          {getConvStatus(c) === "active" ? "نشط" : "منتهي"}
+                        </Badge>
+                      </div>
+                      <p className="font-medium text-sm">{getOtherName(c)}</p>
+                    </div>
+                    {c.lesson_title && (
+                      <p className="text-xs text-muted-foreground text-right">{c.lesson_title}</p>
+                    )}
                   </button>
                 ))}
               </div>
