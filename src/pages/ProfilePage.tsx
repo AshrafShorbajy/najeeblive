@@ -44,12 +44,11 @@ export default function ProfilePage() {
   };
 
   const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      navigate("/");
-    } catch (err) {
-      console.error("Sign out error:", err);
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (error) {
       toast.error("حدث خطأ أثناء تسجيل الخروج");
+    } else {
+      navigate("/");
     }
   };
 
