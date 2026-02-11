@@ -49,8 +49,8 @@ export default function AdminDashboard() {
       supabase.from("subjects").select("*, grade_levels(name)"),
       supabase.from("skills_categories").select("*"),
       supabase.from("announcements").select("*").order("display_order"),
-      supabase.from("user_roles").select("*, profiles:user_id(full_name, phone)").eq("role", "student"),
-      supabase.from("user_roles").select("*, profiles:user_id(full_name, phone)").eq("role", "teacher"),
+      supabase.from("user_roles").select("*").eq("role", "student"),
+      supabase.from("user_roles").select("*").eq("role", "teacher"),
     ]);
 
     setCurricula(curricRes.data ?? []);
@@ -58,8 +58,31 @@ export default function AdminDashboard() {
     setSubjects(subjectRes.data ?? []);
     setSkillCats(skillRes.data ?? []);
     setAnnouncements(announcRes.data ?? []);
-    setStudents(studentsRes.data ?? []);
-    setTeachers(teachersRes.data ?? []);
+
+    // Fetch profiles separately for students and teachers
+    const allUserIds = [
+      ...(studentsRes.data ?? []).map((s) => s.user_id),
+      ...(teachersRes.data ?? []).map((t) => t.user_id),
+    ];
+    const uniqueIds = [...new Set(allUserIds)];
+    let profilesMap: Record<string, any> = {};
+    if (uniqueIds.length > 0) {
+      const { data: profiles } = await supabase.from("profiles")
+        .select("user_id, full_name, phone")
+        .in("user_id", uniqueIds);
+      profiles?.forEach((p) => { profilesMap[p.user_id] = p; });
+    }
+
+    const enrichedStudents = (studentsRes.data ?? []).map((s) => ({
+      ...s,
+      profiles: profilesMap[s.user_id] || null,
+    }));
+    const enrichedTeachers = (teachersRes.data ?? []).map((t) => ({
+      ...t,
+      profiles: profilesMap[t.user_id] || null,
+    }));
+    setStudents(enrichedStudents);
+    setTeachers(enrichedTeachers);
 
     // Stats
     const { count: lessonCount } = await supabase.from("lessons").select("*", { count: "exact", head: true });
@@ -67,15 +90,28 @@ export default function AdminDashboard() {
     const income = completedBookings?.reduce((sum, b) => sum + Number(b.amount), 0) ?? 0;
 
     setStats({
-      students: studentsRes.data?.length ?? 0,
-      teachers: teachersRes.data?.length ?? 0,
+      students: enrichedStudents.length,
+      teachers: enrichedTeachers.length,
       lessons: lessonCount ?? 0,
       income,
     });
 
     if (isAdmin) {
-      const { data: wData } = await supabase.from("withdrawal_requests").select("*, profiles:teacher_id(full_name)").order("created_at", { ascending: false });
-      setWithdrawals(wData ?? []);
+      const { data: wData } = await supabase.from("withdrawal_requests").select("*").order("created_at", { ascending: false });
+      // Fetch teacher names for withdrawals
+      const wTeacherIds = [...new Set((wData ?? []).map((w) => w.teacher_id))];
+      let wProfilesMap: Record<string, any> = {};
+      if (wTeacherIds.length > 0) {
+        const { data: wProfiles } = await supabase.from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", wTeacherIds);
+        wProfiles?.forEach((p) => { wProfilesMap[p.user_id] = p; });
+      }
+      const enrichedWithdrawals = (wData ?? []).map((w) => ({
+        ...w,
+        profiles: wProfilesMap[w.teacher_id] || null,
+      }));
+      setWithdrawals(enrichedWithdrawals);
     }
   };
 
