@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut } from "lucide-react";
 
 export default function AdminDashboard() {
-  const { user, isAdmin, isSupervisor, signOut } = useAuthContext();
+  const { user, isAdmin, isSupervisor, loading, signOut } = useAuthContext();
   const navigate = useNavigate();
   const [stats, setStats] = useState({ students: 0, teachers: 0, lessons: 0, income: 0 });
   const [curricula, setCurricula] = useState<any[]>([]);
@@ -31,12 +31,13 @@ export default function AdminDashboard() {
   const [announcementDesc, setAnnouncementDesc] = useState("");
 
   useEffect(() => {
+    if (loading) return;
     if (!user || (!isAdmin && !isSupervisor)) {
       navigate("/");
       return;
     }
     loadData();
-  }, [user, isAdmin, isSupervisor]);
+  }, [user, isAdmin, isSupervisor, loading]);
 
   const loadData = async () => {
     const [curricRes, gradeRes, subjectRes, skillRes, announcRes, studentsRes, teachersRes] = await Promise.all([
@@ -134,6 +135,10 @@ export default function AdminDashboard() {
     { label: "الحصص", value: stats.lessons, icon: BookOpen, color: "text-accent" },
     { label: "الدخل", value: `${stats.income} ر.س`, icon: DollarSign, color: "text-success" },
   ];
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">جارٍ التحميل...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-background">
