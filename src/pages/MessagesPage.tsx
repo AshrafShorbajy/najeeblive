@@ -20,9 +20,28 @@ export default function MessagesPage() {
     const loadConversations = async () => {
       const { data } = await supabase
         .from("conversations")
-        .select("*, student:student_id(full_name), teacher:teacher_id(full_name), bookings:booking_id(status)")
+        .select("*, bookings:booking_id(status)")
         .or(`student_id.eq.${user.id},teacher_id.eq.${user.id}`);
-      setConversations(data ?? []);
+      
+      if (!data || data.length === 0) {
+        setConversations([]);
+        return;
+      }
+
+      const userIds = [...new Set(data.flatMap(c => [c.student_id, c.teacher_id]))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", userIds);
+      
+      const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) ?? []);
+      
+      const enriched = data.map(c => ({
+        ...c,
+        student_name: profileMap.get(c.student_id) ?? "طالب",
+        teacher_name: profileMap.get(c.teacher_id) ?? "معلم",
+      }));
+      setConversations(enriched);
     };
     loadConversations();
   }, [user]);
@@ -62,8 +81,8 @@ export default function MessagesPage() {
 
   const getOtherName = (conv: any) => {
     if (!user) return "";
-    if (conv.student_id === user.id) return (conv as any).teacher?.full_name ?? "معلم";
-    return (conv as any).student?.full_name ?? "طالب";
+    if (conv.student_id === user.id) return conv.teacher_name ?? "معلم";
+    return conv.student_name ?? "طالب";
   };
 
   const getConvStatus = (conv: any) => {
