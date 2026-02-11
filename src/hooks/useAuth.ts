@@ -11,11 +11,20 @@ export function useAuth() {
     let initialized = false;
 
     const fetchRoles = async (userId: string) => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-      return data?.map((r) => r.role) ?? [];
+      try {
+        const { data, error } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId);
+        if (error) {
+          console.error("Error fetching roles:", error);
+          return [];
+        }
+        return data?.map((r) => r.role) ?? [];
+      } catch (err) {
+        console.error("fetchRoles exception:", err);
+        return [];
+      }
     };
 
     // Get initial session
@@ -23,12 +32,17 @@ export function useAuth() {
       if (initialized) return;
       initialized = true;
       
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        const userRoles = await fetchRoles(session.user.id);
-        setRoles(userRoles);
+      try {
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          const userRoles = await fetchRoles(session.user.id);
+          setRoles(userRoles);
+        }
+      } catch (err) {
+        console.error("getSession error:", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     // Listen for auth changes
@@ -38,14 +52,19 @@ export function useAuth() {
           initialized = true;
         }
         
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          const userRoles = await fetchRoles(session.user.id);
-          setRoles(userRoles);
-        } else {
-          setRoles([]);
+        try {
+          setUser(session?.user ?? null);
+          if (session?.user) {
+            const userRoles = await fetchRoles(session.user.id);
+            setRoles(userRoles);
+          } else {
+            setRoles([]);
+          }
+        } catch (err) {
+          console.error("onAuthStateChange error:", err);
+        } finally {
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
