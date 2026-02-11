@@ -63,11 +63,15 @@ export default function SchedulePage() {
                     <span>{new Date(b.scheduled_at).toLocaleString("ar")}</span>
                   </div>
                 )}
-                {b.zoom_join_url && b.status === "scheduled" && (
-                  <a href={b.zoom_join_url} target="_blank" rel="noopener noreferrer">
+                {b.status === "scheduled" && (b.zoom_join_url || b.zoom_start_url) && (
+                  <a
+                    href={b.teacher_id === user?.id ? (b.zoom_start_url ?? b.zoom_join_url) : b.zoom_join_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <Button size="sm" variant="hero" className="w-full">
                       <Video className="h-4 w-4 ml-2" />
-                      دخول الحصة عبر زوم
+                      {b.teacher_id === user?.id ? "بدء الحصة (زوم)" : "دخول الحصة عبر زوم"}
                     </Button>
                   </a>
                 )}
