@@ -45,6 +45,7 @@ export default function AdminDashboard() {
   const [bannerTitle, setBannerTitle] = useState("");
   const [bannerDesc, setBannerDesc] = useState("");
   const [bannerImage, setBannerImage] = useState("");
+  const [siteLogo, setSiteLogo] = useState("");
   const [offers, setOffers] = useState<{title: string; description: string; image_url?: string}[]>([]);
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -138,6 +139,7 @@ export default function AdminDashboard() {
         if (s.key === "home_banner_title") setBannerTitle(typeof s.value === "string" ? s.value : "");
         if (s.key === "home_banner_description") setBannerDesc(typeof s.value === "string" ? s.value : "");
         if (s.key === "home_banner_image") setBannerImage(typeof s.value === "string" ? s.value : "");
+        if (s.key === "site_logo") setSiteLogo(typeof s.value === "string" ? s.value : "");
         if (s.key === "offers") setOffers(Array.isArray(s.value) ? s.value as any : []);
       }
     }
@@ -221,6 +223,13 @@ export default function AdminDashboard() {
     return publicUrl;
   };
 
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = await uploadImage(file, "logos");
+    if (url) setSiteLogo(url);
+  };
+
   const handleBannerImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -246,6 +255,7 @@ export default function AdminDashboard() {
       supabase.from("site_settings").update({ value: bannerTitle } as any).eq("key", "home_banner_title"),
       supabase.from("site_settings").update({ value: bannerDesc } as any).eq("key", "home_banner_description"),
       supabase.from("site_settings").update({ value: bannerImage } as any).eq("key", "home_banner_image"),
+      supabase.from("site_settings").update({ value: siteLogo } as any).eq("key", "site_logo"),
       supabase.from("site_settings").update({ value: offers } as any).eq("key", "offers"),
     ];
     const results = await Promise.all(updates);
@@ -561,6 +571,25 @@ export default function AdminDashboard() {
                     الموقع مغلق حالياً - الزوار يرون صفحة الصيانة
                   </div>
                 )}
+              </div>
+
+              {/* Logo Settings */}
+              <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                <h3 className="font-semibold text-sm">لوجو الموقع</h3>
+                <p className="text-[10px] text-muted-foreground">الحجم المقترح: 200×50 بكسل (نسبة 4:1) — بصيغة PNG شفافة الخلفية — أقصى حجم 500 كيلوبايت</p>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors">
+                    <ImagePlus className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">اختر صورة اللوجو</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                  </label>
+                  {siteLogo && (
+                    <div className="relative">
+                      <img src={siteLogo} alt="لوجو" className="h-12 object-contain rounded-lg bg-muted p-1" />
+                      <button onClick={() => setSiteLogo("")} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-4 w-4 flex items-center justify-center text-[10px]">×</button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Banner Settings */}
