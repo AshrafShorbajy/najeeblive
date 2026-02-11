@@ -56,11 +56,26 @@ export default function TeacherDashboard() {
   const fetchBookings = async () => {
     if (!user) return;
     const { data } = await supabase.from("bookings")
-      .select("*, lessons(title), student:student_id(full_name)")
+      .select("*, lessons(title)")
       .eq("teacher_id", user.id)
       .order("created_at", { ascending: false });
-    setBookings(data ?? []);
-    const completed = data?.filter((b) => b.status === "completed") ?? [];
+    
+    // Fetch student names from profiles
+    const studentIds = [...new Set((data ?? []).map((b) => b.student_id))];
+    let studentNames: Record<string, string> = {};
+    if (studentIds.length > 0) {
+      const { data: profiles } = await supabase.from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", studentIds);
+      profiles?.forEach((p) => { studentNames[p.user_id] = p.full_name; });
+    }
+
+    const enriched = (data ?? []).map((b) => ({
+      ...b,
+      student_name: studentNames[b.student_id] || "غير معروف",
+    }));
+    setBookings(enriched);
+    const completed = enriched.filter((b) => b.status === "completed");
     setEarnings(completed.reduce((sum, b) => sum + Number(b.amount), 0));
   };
 
@@ -265,7 +280,7 @@ export default function TeacherDashboard() {
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <h3 className="font-semibold text-sm">{(b as any).lessons?.title}</h3>
-                    <p className="text-xs text-muted-foreground">الطالب: {(b as any).student?.full_name}</p>
+                    <p className="text-xs text-muted-foreground">الطالب: {b.student_name}</p>
                   </div>
                   <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
                     {b.status === "pending" ? "في الانتظار" : b.status === "scheduled" ? "مجدول" : b.status === "completed" ? "مكتمل" : b.status}
