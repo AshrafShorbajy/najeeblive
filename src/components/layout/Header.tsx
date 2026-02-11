@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 export function Header() {
   const { user, isAdmin, isTeacher, isSupervisor } = useAuthContext();
 
-  const dashboardLink = isAdmin ? "/admin" : isTeacher ? "/teacher-dashboard" : isSupervisor ? "/admin" : null;
+  const dashboardLink = isAdmin ? "/admin" : isTeacher ? "/teacher/dashboard" : isSupervisor ? "/admin" : null;
 
   return (
     <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-md border-b border-border">
