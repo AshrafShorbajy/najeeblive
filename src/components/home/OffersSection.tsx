@@ -1,21 +1,36 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Tag } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-const offers = [
-  { id: 1, title: "خصم 20% على الحصة الأولى", description: "للطلاب الجدد فقط" },
-  { id: 2, title: "باقة 5 حصص", description: "وفر 15% عند شراء باقة" },
-  { id: 3, title: "مراجعة مجانية", description: "احصل على حصة مراجعة مجانية" },
-  { id: 4, title: "عرض الصيف", description: "خصومات حصرية على جميع المواد" },
+const defaultOffers = [
+  { title: "خصم 20% على الحصة الأولى", description: "للطلاب الجدد فقط" },
+  { title: "باقة 5 حصص", description: "وفر 15% عند شراء باقة" },
+  { title: "مراجعة مجانية", description: "احصل على حصة مراجعة مجانية" },
+  { title: "عرض الصيف", description: "خصومات حصرية على جميع المواد" },
 ];
 
 export function OffersSection() {
+  const [offers, setOffers] = useState<{ title: string; description: string }[]>(defaultOffers);
+
+  useEffect(() => {
+    supabase.from("site_settings").select("value").eq("key", "offers").single()
+      .then(({ data }) => {
+        if (data && Array.isArray(data.value) && data.value.length > 0) {
+          setOffers(data.value as any);
+        }
+      });
+  }, []);
+
+  if (offers.length === 0) return null;
+
   return (
     <section className="px-4 mt-8 mb-8">
       <h2 className="text-lg font-bold mb-4">العروض والخصومات</h2>
       <div className="grid grid-cols-2 gap-3">
         {offers.map((offer, i) => (
           <motion.div
-            key={offer.id}
+            key={i}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: i * 0.1 }}
