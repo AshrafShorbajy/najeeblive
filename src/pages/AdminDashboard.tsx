@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search } from "lucide-react";
+import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import TeachersManagement from "@/components/admin/TeachersManagement";
 
 export default function AdminDashboard() {
@@ -38,6 +39,13 @@ export default function AdminDashboard() {
   const [selectedGrade, setSelectedGrade] = useState("");
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementDesc, setAnnouncementDesc] = useState("");
+
+  // Site settings states
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [bannerTitle, setBannerTitle] = useState("");
+  const [bannerDesc, setBannerDesc] = useState("");
+  const [offers, setOffers] = useState<{title: string; description: string}[]>([]);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -120,6 +128,17 @@ export default function AdminDashboard() {
       }));
       setWithdrawals(enrichedWithdrawals);
     }
+
+    // Load site settings
+    const { data: settingsData } = await supabase.from("site_settings").select("*");
+    if (settingsData) {
+      for (const s of settingsData) {
+        if (s.key === "maintenance_mode") setMaintenanceMode(s.value === true);
+        if (s.key === "home_banner_title") setBannerTitle(typeof s.value === "string" ? s.value : "");
+        if (s.key === "home_banner_description") setBannerDesc(typeof s.value === "string" ? s.value : "");
+        if (s.key === "offers") setOffers(Array.isArray(s.value) ? s.value as any : []);
+      }
+    }
   };
 
   const addCurriculum = async () => {
@@ -192,6 +211,35 @@ export default function AdminDashboard() {
     loadData();
   };
 
+  const saveSiteSettings = async () => {
+    setSavingSettings(true);
+    const updates = [
+      supabase.from("site_settings").update({ value: maintenanceMode } as any).eq("key", "maintenance_mode"),
+      supabase.from("site_settings").update({ value: bannerTitle } as any).eq("key", "home_banner_title"),
+      supabase.from("site_settings").update({ value: bannerDesc } as any).eq("key", "home_banner_description"),
+      supabase.from("site_settings").update({ value: offers } as any).eq("key", "offers"),
+    ];
+    const results = await Promise.all(updates);
+    const hasError = results.some(r => r.error);
+    if (hasError) toast.error("خطأ في حفظ الإعدادات");
+    else toast.success("تم حفظ الإعدادات");
+    setSavingSettings(false);
+  };
+
+  const addOffer = () => {
+    setOffers([...offers, { title: "", description: "" }]);
+  };
+
+  const removeOffer = (index: number) => {
+    setOffers(offers.filter((_, i) => i !== index));
+  };
+
+  const updateOffer = (index: number, field: "title" | "description", value: string) => {
+    const updated = [...offers];
+    updated[index] = { ...updated[index], [field]: value };
+    setOffers(updated);
+  };
+
   const statCards = [
     { label: "الطلاب", value: stats.students, icon: Users, color: "text-primary" },
     { label: "المعلمين", value: stats.teachers, icon: GraduationCap, color: "text-secondary" },
@@ -240,6 +288,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="announcements">الإعلانات</TabsTrigger>
             {isAdmin && <TabsTrigger value="skills">مهارات</TabsTrigger>}
             {isAdmin && <TabsTrigger value="withdrawals">طلبات السحب</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="site-settings">إعدادات الموقع</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="students" className="mt-4 space-y-4">
@@ -460,7 +509,66 @@ export default function AdminDashboard() {
                       <Button size="sm" variant="hero" className="flex-1" onClick={() => handleWithdrawalAction(w.id, "approved")}>قبول</Button>
                       <Button size="sm" variant="destructive" className="flex-1" onClick={() => handleWithdrawalAction(w.id, "rejected")}>رفض</Button>
                     </div>
-                  )}
+          )}
+
+          {isAdmin && (
+            <TabsContent value="site-settings" className="mt-4 space-y-6">
+              {/* Maintenance Mode */}
+              <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-sm">إغلاق الموقع مؤقتاً</h3>
+                    <p className="text-xs text-muted-foreground">عند التفعيل ستظهر صفحة "تحت الصيانة" للزوار</p>
+                  </div>
+                  <Switch checked={maintenanceMode} onCheckedChange={setMaintenanceMode} />
+                </div>
+                {maintenanceMode && (
+                  <div className="bg-destructive/10 rounded-lg p-3 text-destructive text-xs flex items-center gap-2">
+                    <Wrench className="h-4 w-4" />
+                    الموقع مغلق حالياً - الزوار يرون صفحة الصيانة
+                  </div>
+                )}
+              </div>
+
+              {/* Banner Settings */}
+              <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                <h3 className="font-semibold text-sm">بانر الصفحة الرئيسية</h3>
+                <div>
+                  <Label className="text-xs">عنوان البانر</Label>
+                  <Input value={bannerTitle} onChange={e => setBannerTitle(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-xs">وصف البانر</Label>
+                  <Input value={bannerDesc} onChange={e => setBannerDesc(e.target.value)} />
+                </div>
+              </div>
+
+              {/* Offers Settings */}
+              <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-sm">العروض والخصومات</h3>
+                  <Button size="sm" variant="outline" onClick={addOffer}><Plus className="h-4 w-4 ml-1" />إضافة عرض</Button>
+                </div>
+                {offers.map((offer, i) => (
+                  <div key={i} className="border border-border rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">عرض {i + 1}</span>
+                      <Button size="icon" variant="ghost" onClick={() => removeOffer(i)}>
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                    <Input placeholder="عنوان العرض" value={offer.title} onChange={e => updateOffer(i, "title", e.target.value)} />
+                    <Input placeholder="وصف العرض" value={offer.description} onChange={e => updateOffer(i, "description", e.target.value)} />
+                  </div>
+                ))}
+              </div>
+
+              <Button onClick={saveSiteSettings} variant="hero" className="w-full" disabled={savingSettings}>
+                <Save className="h-4 w-4 ml-1" />
+                {savingSettings ? "جارٍ الحفظ..." : "حفظ جميع الإعدادات"}
+              </Button>
+            </TabsContent>
+          )}
                 </div>
               ))}
             </TabsContent>

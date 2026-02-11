@@ -14,6 +14,9 @@ export function AnnouncementBanner() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [current, setCurrent] = useState(0);
 
+  const [bannerTitle, setBannerTitle] = useState("مرحباً بك في منصة تعليم");
+  const [bannerDesc, setBannerDesc] = useState("أفضل منصة للدروس الخصوصية عبر الإنترنت");
+
   useEffect(() => {
     supabase
       .from("announcements")
@@ -22,6 +25,15 @@ export function AnnouncementBanner() {
       .order("display_order")
       .then(({ data }) => {
         if (data && data.length > 0) setAnnouncements(data);
+      });
+
+    // Load banner settings
+    supabase.from("site_settings").select("key, value").in("key", ["home_banner_title", "home_banner_description"])
+      .then(({ data }) => {
+        data?.forEach(s => {
+          if (s.key === "home_banner_title" && typeof s.value === "string") setBannerTitle(s.value);
+          if (s.key === "home_banner_description" && typeof s.value === "string") setBannerDesc(s.value);
+        });
       });
   }, []);
 
@@ -36,8 +48,8 @@ export function AnnouncementBanner() {
   if (announcements.length === 0) {
     return (
       <div className="relative overflow-hidden rounded-xl mx-4 mt-4 gradient-hero p-8 text-primary-foreground">
-        <h2 className="text-2xl font-bold mb-2">مرحباً بك في منصة تعليم</h2>
-        <p className="text-primary-foreground/80">أفضل منصة للدروس الخصوصية عبر الإنترنت</p>
+        <h2 className="text-2xl font-bold mb-2">{bannerTitle}</h2>
+        <p className="text-primary-foreground/80">{bannerDesc}</p>
       </div>
     );
   }
