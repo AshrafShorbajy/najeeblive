@@ -125,7 +125,7 @@ export default function LessonDetailPage() {
 
   return (
     <AppLayout>
-      <div className="pb-4">
+      <div className="pb-4" dir="rtl">
         {lesson.image_url ? (
           <img src={lesson.image_url} alt={lesson.title} className="w-full h-48 object-cover" />
         ) : (
