@@ -533,11 +533,15 @@ export default function AdminDashboard() {
                       {w.status === "pending" ? "قيد المراجعة" : w.status === "approved" ? "مقبول" : "مرفوض"}
                     </span>
                   </div>
-                  {w.status === "pending" && (
+                    {w.status === "pending" && (
                     <div className="flex gap-2">
                       <Button size="sm" variant="hero" className="flex-1" onClick={() => handleWithdrawalAction(w.id, "approved")}>قبول</Button>
                       <Button size="sm" variant="destructive" className="flex-1" onClick={() => handleWithdrawalAction(w.id, "rejected")}>رفض</Button>
                     </div>
+                  )}
+                </div>
+              ))}
+            </TabsContent>
           )}
 
           {isAdmin && (
@@ -625,10 +629,6 @@ export default function AdminDashboard() {
                 <Save className="h-4 w-4 ml-1" />
                 {savingSettings ? "جارٍ الحفظ..." : "حفظ جميع الإعدادات"}
               </Button>
-            </TabsContent>
-          )}
-                </div>
-              ))}
             </TabsContent>
           )}
         </Tabs>
