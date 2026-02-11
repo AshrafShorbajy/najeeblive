@@ -226,6 +226,44 @@ export default function TeachersManagement() {
         {filtered.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">لا توجد نتائج</p>}
       </div>
 
+      {/* Teachers only list */}
+      <div className="mt-6">
+        <h3 className="font-bold text-base mb-3">قائمة المعلمين فقط</h3>
+        <div className="space-y-2">
+          {users.filter(u => u.isTeacher).filter(u =>
+            u.full_name.includes(search) || u.phone?.includes(search) || u.email?.includes(search)
+          ).map(u => (
+            <div
+              key={u.user_id}
+              className="bg-card rounded-xl p-3 border border-primary/20 cursor-pointer hover:border-primary/40 transition-colors"
+              onClick={() => { setSelectedUser(u); setNotesValue(u.admin_notes ?? ""); }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                  {u.avatar_url ? (
+                    <img src={u.avatar_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <User className="h-5 w-5 text-primary" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{u.full_name}</p>
+                  <p className="text-xs text-muted-foreground">{u.email || u.phone || "بدون بيانات"}</p>
+                </div>
+                <div className="flex gap-3 text-[10px] text-muted-foreground shrink-0">
+                  <span className="flex items-center gap-0.5"><BookOpen className="h-3 w-3" />{u.lessonCount}</span>
+                  <span className="flex items-center gap-0.5"><Star className="h-3 w-3 text-yellow-500" />{u.avgRating || "-"}</span>
+                  <span className="flex items-center gap-0.5"><Calendar className="h-3 w-3" />{u.bookingCount}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+          {users.filter(u => u.isTeacher).length === 0 && (
+            <p className="text-center text-muted-foreground text-sm py-8">لا يوجد معلمين</p>
+          )}
+        </div>
+      </div>
+
       {/* User detail dialog */}
       <Dialog open={!!selectedUser} onOpenChange={open => { if (!open) setSelectedUser(null); }}>
         <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
