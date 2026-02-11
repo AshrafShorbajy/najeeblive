@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut } from "lucide-react";
+import TeachersManagement from "@/components/admin/TeachersManagement";
 
 export default function AdminDashboard() {
   const { user, isAdmin, isSupervisor, signOut } = useAuthContext();
@@ -195,16 +196,7 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="teachers" className="mt-4">
-            <div className="space-y-2">
-              {teachers.map((t) => (
-                <div key={t.id} className="bg-card rounded-lg p-3 border border-border flex justify-between items-center">
-                  <div>
-                    <p className="font-medium text-sm">{(t as any).profiles?.full_name ?? "بدون اسم"}</p>
-                    <p className="text-xs text-muted-foreground">{(t as any).profiles?.phone}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <TeachersManagement />
           </TabsContent>
 
           <TabsContent value="curricula" className="mt-4 space-y-4">
