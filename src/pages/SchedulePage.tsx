@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Video, Clock, CheckCircle } from "lucide-react";
+import { Video, Clock, CheckCircle, User } from "lucide-react";
 
 export default function SchedulePage() {
   const { user } = useAuthContext();
@@ -11,12 +11,27 @@ export default function SchedulePage() {
 
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("bookings")
-      .select("*, lessons(title, duration_minutes)")
-      .or(`student_id.eq.${user.id},teacher_id.eq.${user.id}`)
-      .order("scheduled_at", { ascending: true })
-      .then(({ data }) => setBookings(data ?? []));
+    const loadBookings = async () => {
+      const { data } = await supabase
+        .from("bookings")
+        .select("*, lessons(title, duration_minutes)")
+        .or(`student_id.eq.${user.id},teacher_id.eq.${user.id}`)
+        .order("scheduled_at", { ascending: true });
+
+      const items = data ?? [];
+      // Fetch teacher names for student's bookings
+      const teacherIds = [...new Set(items.filter(b => b.student_id === user.id).map(b => b.teacher_id))];
+      let teacherMap: Record<string, string> = {};
+      if (teacherIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", teacherIds);
+        profiles?.forEach(p => { teacherMap[p.user_id] = p.full_name; });
+      }
+      setBookings(items.map(b => ({ ...b, teacher_name: teacherMap[b.teacher_id] || "" })));
+    };
+    loadBookings();
   }, [user]);
 
   const statusLabel = (s: string) => {
@@ -57,6 +72,12 @@ export default function SchedulePage() {
                     {statusLabel(b.status)}
                   </span>
                 </div>
+                {b.student_id === user?.id && b.teacher_name && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                    <User className="h-4 w-4" />
+                    <span>المعلم: {b.teacher_name}</span>
+                  </div>
+                )}
                 {b.scheduled_at && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                     <Clock className="h-4 w-4" />
