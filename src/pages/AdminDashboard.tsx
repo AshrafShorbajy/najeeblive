@@ -30,13 +30,9 @@ export default function AdminDashboard() {
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementDesc, setAnnouncementDesc] = useState("");
 
-  console.log("AdminDashboard render:", { loading, user: !!user, isAdmin, isSupervisor, roles: useAuthContext().roles });
-
   useEffect(() => {
-    console.log("AdminDashboard useEffect:", { loading, user: !!user, isAdmin, isSupervisor });
     if (loading) return;
     if (!user || (!isAdmin && !isSupervisor)) {
-      console.log("AdminDashboard: redirecting to /");
       navigate("/");
       return;
     }
