@@ -43,11 +43,11 @@ export function LessonTypes() {
           >
             <Link
               to={type.path}
-              className={`block ${type.gradient} rounded-xl p-6 text-primary-foreground hover:scale-[1.02] transition-transform shadow-elevated`}
+              className={`block ${type.gradient} rounded-xl p-6 text-foreground hover:scale-[1.02] transition-transform shadow-elevated`}
             >
               <type.icon className="h-8 w-8 mb-3" />
               <h3 className="font-bold text-lg">{type.title}</h3>
-              <p className="text-sm text-primary-foreground/80 mt-1">{type.description}</p>
+              <p className="text-sm text-foreground/70 mt-1">{type.description}</p>
             </Link>
           </motion.div>
         ))}

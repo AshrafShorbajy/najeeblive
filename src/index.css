@@ -100,15 +100,15 @@
 
 @layer utilities {
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(215, 80%, 50%), hsl(215, 80%, 35%));
+    background: linear-gradient(135deg, hsl(43, 80%, 55%), hsl(38, 70%, 45%));
   }
 
   .gradient-secondary {
-    background: linear-gradient(135deg, hsl(25, 95%, 55%), hsl(25, 95%, 42%));
+    background: linear-gradient(135deg, hsl(43, 80%, 55%), hsl(38, 70%, 45%));
   }
 
   .gradient-hero {
-    background: linear-gradient(135deg, hsl(215, 80%, 50%), hsl(170, 60%, 45%));
+    background: linear-gradient(135deg, hsl(43, 80%, 55%), hsl(38, 70%, 45%));
   }
 
   .glass-card {
