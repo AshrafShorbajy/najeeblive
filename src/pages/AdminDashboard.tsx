@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut } from "lucide-react";
+import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import TeachersManagement from "@/components/admin/TeachersManagement";
 
 export default function AdminDashboard() {
@@ -24,6 +25,12 @@ export default function AdminDashboard() {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [teachers, setTeachers] = useState<any[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [editStudentName, setEditStudentName] = useState("");
+  const [editStudentPhone, setEditStudentPhone] = useState("");
+  const [editStudentBio, setEditStudentBio] = useState("");
+  const [savingStudent, setSavingStudent] = useState(false);
 
   // Form states
   const [newName, setNewName] = useState("");
@@ -68,7 +75,7 @@ export default function AdminDashboard() {
     let profilesMap: Record<string, any> = {};
     if (uniqueIds.length > 0) {
       const { data: profiles } = await supabase.from("profiles")
-        .select("user_id, full_name, phone")
+        .select("user_id, full_name, phone, bio, avatar_url, created_at")
         .in("user_id", uniqueIds);
       profiles?.forEach((p) => { profilesMap[p.user_id] = p; });
     }
@@ -162,6 +169,23 @@ export default function AdminDashboard() {
     loadData();
   };
 
+  const saveStudentProfile = async () => {
+    if (!selectedStudent) return;
+    setSavingStudent(true);
+    const { error } = await supabase.from("profiles").update({
+      full_name: editStudentName,
+      phone: editStudentPhone,
+      bio: editStudentBio,
+    }).eq("user_id", selectedStudent.user_id);
+    if (error) toast.error("خطأ في حفظ البيانات");
+    else {
+      toast.success("تم حفظ بيانات الطالب");
+      setSelectedStudent(null);
+      loadData();
+    }
+    setSavingStudent(false);
+  };
+
   const deleteItem = async (table: "curricula" | "grade_levels" | "subjects" | "skills_categories" | "announcements", id: string) => {
     await supabase.from(table).delete().eq("id", id);
     toast.success("تم الحذف");
@@ -218,17 +242,85 @@ export default function AdminDashboard() {
             {isAdmin && <TabsTrigger value="withdrawals">طلبات السحب</TabsTrigger>}
           </TabsList>
 
-          <TabsContent value="students" className="mt-4">
+          <TabsContent value="students" className="mt-4 space-y-4">
+            <div className="relative">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="بحث بالاسم أو الهاتف..." value={studentSearch} onChange={e => setStudentSearch(e.target.value)} className="pr-10" />
+            </div>
+            <p className="text-xs text-muted-foreground">{students.filter(s => {
+              const name = s.profiles?.full_name || "";
+              const phone = s.profiles?.phone || "";
+              return name.includes(studentSearch) || phone.includes(studentSearch);
+            }).length} طالب</p>
             <div className="space-y-2">
-              {students.map((s) => (
-                <div key={s.id} className="bg-card rounded-lg p-3 border border-border flex justify-between items-center">
-                  <div>
-                    <p className="font-medium text-sm">{(s as any).profiles?.full_name ?? "بدون اسم"}</p>
-                    <p className="text-xs text-muted-foreground">{(s as any).profiles?.phone}</p>
+              {students.filter(s => {
+                const name = s.profiles?.full_name || "";
+                const phone = s.profiles?.phone || "";
+                return name.includes(studentSearch) || phone.includes(studentSearch);
+              }).map((s) => (
+                <div
+                  key={s.id}
+                  className="bg-card rounded-xl p-3 border border-border cursor-pointer hover:border-primary/40 transition-colors"
+                  onClick={() => {
+                    setSelectedStudent(s);
+                    setEditStudentName(s.profiles?.full_name || "");
+                    setEditStudentPhone(s.profiles?.phone || "");
+                    setEditStudentBio(s.profiles?.bio || "");
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <User className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{s.profiles?.full_name ?? "بدون اسم"}</p>
+                      <p className="text-xs text-muted-foreground">{s.profiles?.phone || "بدون هاتف"}</p>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {s.profiles?.created_at && new Date(s.profiles.created_at).toLocaleDateString("ar")}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
+
+            {/* Student detail dialog */}
+            <Dialog open={!!selectedStudent} onOpenChange={open => { if (!open) setSelectedStudent(null); }}>
+              <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+                {selectedStudent && (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <User className="h-5 w-5 text-primary" />
+                        تفاصيل الطالب
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 mt-2">
+                      <div>
+                        <Label className="text-xs mb-1 block">الاسم</Label>
+                        <Input value={editStudentName} onChange={e => setEditStudentName(e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs mb-1 block">الهاتف</Label>
+                        <Input value={editStudentPhone} onChange={e => setEditStudentPhone(e.target.value)} dir="ltr" />
+                      </div>
+                      <div>
+                        <Label className="text-xs mb-1 block">نبذة</Label>
+                        <Textarea value={editStudentBio} onChange={e => setEditStudentBio(e.target.value)} rows={3} placeholder="نبذة عن الطالب..." />
+                      </div>
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        تاريخ التسجيل: {selectedStudent.profiles?.created_at ? new Date(selectedStudent.profiles.created_at).toLocaleDateString("ar") : "غير معروف"}
+                      </div>
+                      <Button onClick={saveStudentProfile} variant="hero" className="w-full" disabled={savingStudent}>
+                        <Save className="h-4 w-4 ml-1" />
+                        {savingStudent ? "جارٍ الحفظ..." : "حفظ التعديلات"}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="teachers" className="mt-4">
