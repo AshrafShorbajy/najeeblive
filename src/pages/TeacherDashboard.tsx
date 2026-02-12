@@ -20,6 +20,8 @@ export default function TeacherDashboard() {
   const [lessons, setLessons] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [earnings, setEarnings] = useState(0);
+  const [accountingRecords, setAccountingRecords] = useState<any[]>([]);
+  const [commissionRate, setCommissionRate] = useState(20);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [curricula, setCurricula] = useState<any[]>([]);
   const [gradeLevels, setGradeLevels] = useState<any[]>([]);
@@ -58,6 +60,8 @@ export default function TeacherDashboard() {
     });
     fetchLessons();
     fetchBookings();
+    fetchAccountingRecords();
+    fetchCommissionRate();
     supabase.from("curricula").select("*").then(({ data }) => setCurricula(data ?? []));
     supabase.from("skills_categories").select("*").then(({ data }) => setSkillCats(data ?? []));
     supabase.from("withdrawal_requests").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false })
@@ -152,6 +156,22 @@ export default function TeacherDashboard() {
   useEffect(() => {
     teacherMsgEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
+
+  const fetchAccountingRecords = async () => {
+    if (!user) return;
+    const { data } = await supabase.from("accounting_records").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false });
+    const records = data ?? [];
+    setAccountingRecords(records);
+    const totalTeacherShare = records.reduce((sum, r) => sum + Number(r.teacher_share), 0);
+    setEarnings(totalTeacherShare);
+  };
+
+  const fetchCommissionRate = async () => {
+    const { data } = await supabase.from("site_settings").select("value").eq("key", "commission_rate").maybeSingle();
+    if (data?.value && typeof data.value === "number") {
+      setCommissionRate(data.value);
+    }
+  };
 
   const fetchLessons = async () => {
     if (!user) return;
@@ -590,10 +610,26 @@ export default function TeacherDashboard() {
                           zoom_start_url: null,
                           zoom_meeting_id: null,
                         }).eq("id", b.id);
-                        if (error) toast.error("خطأ في تحديث الحالة");
-                        else {
-                          toast.success("تم إنهاء الحصة بنجاح");
+                        if (error) {
+                          toast.error("خطأ في تحديث الحالة");
+                        } else {
+                          // Create accounting record with commission split
+                          const totalAmount = Number(b.amount);
+                          const platformShare = Math.round(totalAmount * commissionRate) / 100;
+                          const teacherShare = totalAmount - platformShare;
+                          await supabase.from("accounting_records").insert({
+                            booking_id: b.id,
+                            lesson_id: b.lesson_id,
+                            teacher_id: b.teacher_id,
+                            student_id: b.student_id,
+                            total_amount: totalAmount,
+                            commission_rate: commissionRate,
+                            platform_share: platformShare,
+                            teacher_share: teacherShare,
+                          });
+                          toast.success("تم إنهاء الحصة وتسجيل الأرباح");
                           fetchBookings();
+                          fetchAccountingRecords();
                         }
                       }}
                     >
@@ -673,11 +709,43 @@ export default function TeacherDashboard() {
           </TabsContent>
 
           <TabsContent value="earnings" className="mt-4 space-y-4">
-            <div className="bg-card rounded-xl p-6 border border-border text-center">
-              <DollarSign className="h-8 w-8 mx-auto text-success mb-2" />
-              <p className="text-2xl font-bold">{format(earnings)}</p>
-              <p className="text-sm text-muted-foreground">إجمالي الأرباح</p>
+            {/* Earnings Summary */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-card rounded-xl p-4 border border-border text-center">
+                <DollarSign className="h-6 w-6 mx-auto text-success mb-1" />
+                <p className="text-xl font-bold">{format(earnings)}</p>
+                <p className="text-[10px] text-muted-foreground">صافي أرباحك</p>
+              </div>
+              <div className="bg-card rounded-xl p-4 border border-border text-center">
+                <DollarSign className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
+                <p className="text-xl font-bold">{format(accountingRecords.reduce((s, r) => s + Number(r.total_amount), 0))}</p>
+                <p className="text-[10px] text-muted-foreground">إجمالي قبل العمولة</p>
+              </div>
             </div>
+            <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground text-center">
+              نسبة عمولة المنصة: {commissionRate}% — يتم خصمها تلقائياً عند إتمام كل حصة
+            </div>
+
+            {/* Recent Accounting Records */}
+            {accountingRecords.length > 0 && (
+              <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                <h3 className="font-semibold text-sm">سجل الأرباح</h3>
+                <div className="space-y-2">
+                  {accountingRecords.slice(0, 15).map(r => (
+                    <div key={r.id} className="border border-border rounded-lg p-3 text-xs space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">{new Date(r.created_at).toLocaleDateString("ar")}</span>
+                        <span className="font-medium">المبلغ: {format(r.total_amount)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">العمولة ({r.commission_rate}%): {format(r.platform_share)}</span>
+                        <span className="font-bold text-success">صافي: {format(r.teacher_share)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="bg-card rounded-xl p-4 border border-border space-y-3">
               <h3 className="font-semibold">طلب سحب</h3>
