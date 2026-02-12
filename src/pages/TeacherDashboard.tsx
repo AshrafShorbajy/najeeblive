@@ -15,7 +15,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 
 export default function TeacherDashboard() {
   const { user } = useAuthContext();
-  const { format, currency } = useCurrency();
+  const { format, convert, exchangeRate, currency } = useCurrency();
   const [profile, setProfile] = useState<any>(null);
   const [lessons, setLessons] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
@@ -348,21 +348,24 @@ export default function TeacherDashboard() {
 
   const handleWithdraw = async () => {
     if (!user || !withdrawAmount) return;
-    const amount = parseFloat(withdrawAmount);
-    if (amount > withdrawableBalance) {
+    const amountInDisplayCurrency = parseFloat(withdrawAmount);
+    const withdrawableInDisplay = convert(withdrawableBalance);
+    if (amountInDisplayCurrency > withdrawableInDisplay) {
       toast.error("المبلغ المطلوب أكبر من الرصيد القابل للسحب");
       return;
     }
+    // Convert back to USD for storage
+    const amountInUsd = exchangeRate > 0 ? amountInDisplayCurrency / exchangeRate : amountInDisplayCurrency;
     const { error } = await supabase.from("withdrawal_requests").insert({
       teacher_id: user.id,
-      amount,
+      amount: Math.round(amountInUsd * 100) / 100,
     });
     if (error) toast.error("خطأ"); else {
       toast.success("تم إرسال طلب السحب");
       setWithdrawAmount("");
       const { data } = await supabase.from("withdrawal_requests").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false });
       setWithdrawals(data ?? []);
-      fetchAccountingRecords(); // refresh withdrawable balance
+      fetchAccountingRecords();
     }
   };
 
@@ -763,7 +766,7 @@ export default function TeacherDashboard() {
 
             <div className="bg-card rounded-xl p-4 border border-border space-y-3">
               <h3 className="font-semibold">طلب سحب</h3>
-              <Input type="number" placeholder="المبلغ" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} />
+              <Input type="number" placeholder={`المبلغ بـ ${currency.symbol}`} value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} />
               <Button onClick={handleWithdraw} variant="hero" className="w-full">طلب سحب</Button>
             </div>
 
