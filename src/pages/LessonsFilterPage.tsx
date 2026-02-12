@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Star, Heart } from "lucide-react";
 import { motion } from "framer-motion";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface TeacherResult {
   id: string;
@@ -18,6 +19,7 @@ interface TeacherResult {
 
 export default function TutoringPage() {
   const { type } = useParams<{ type: string }>();
+  const { format } = useCurrency();
   const [curricula, setCurricula] = useState<any[]>([]);
   const [gradeLevels, setGradeLevels] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -210,7 +212,7 @@ export default function TutoringPage() {
                 </div>
                 <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                   <span>{r.duration_minutes} دقيقة</span>
-                  <span>{r.price} ر.س</span>
+                  <span>{format(r.price)}</span>
                 </div>
               </Link>
             </motion.div>

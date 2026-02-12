@@ -8,15 +8,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench, ImagePlus } from "lucide-react";
+import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench, ImagePlus, Globe } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import TeachersManagement from "@/components/admin/TeachersManagement";
 import OrdersManagement from "@/components/admin/OrdersManagement";
 import InvoicesManagement from "@/components/admin/InvoicesManagement";
+import { ALL_CURRENCIES, useCurrency } from "@/contexts/CurrencyContext";
 
 export default function AdminDashboard() {
   const { user, loading, isAdmin, isSupervisor, signOut } = useAuthContext();
+  const { format } = useCurrency();
   const [dataLoading, setDataLoading] = useState(true);
   const navigate = useNavigate();
   const [stats, setStats] = useState({ students: 0, teachers: 0, lessons: 0, income: 0 });
@@ -57,6 +60,8 @@ export default function AdminDashboard() {
     paypal: { enabled: true, email: "" },
     bank_transfer: { enabled: true, account_number: "", account_holder: "", branch: "", bank_logo_url: "" },
   });
+  const [activeCurrency, setActiveCurrency] = useState("USD");
+  const [exchangeRate, setExchangeRate] = useState("1");
 
   useEffect(() => {
     if (loading) return;
@@ -156,6 +161,11 @@ export default function AdminDashboard() {
             paypal: { ...prev.paypal, ...v.paypal },
             bank_transfer: { ...prev.bank_transfer, ...v.bank_transfer },
           }));
+        }
+        if (s.key === "currency_settings" && typeof s.value === "object" && s.value !== null) {
+          const v = s.value as any;
+          setActiveCurrency(v.activeCurrency || "USD");
+          setExchangeRate(String(v.exchangeRate || 1));
         }
       }
     }
@@ -281,6 +291,14 @@ export default function AdminDashboard() {
     } else {
       updates.push(supabase.from("site_settings").insert({ key: "payment_methods", value: paymentMethods } as any) as any);
     }
+    // Upsert currency_settings
+    const currencyValue = { activeCurrency, exchangeRate: parseFloat(exchangeRate) || 1 };
+    const { data: existingCur } = await supabase.from("site_settings").select("id").eq("key", "currency_settings").maybeSingle();
+    if (existingCur) {
+      updates.push(supabase.from("site_settings").update({ value: currencyValue } as any).eq("key", "currency_settings"));
+    } else {
+      updates.push(supabase.from("site_settings").insert({ key: "currency_settings", value: currencyValue } as any) as any);
+    }
     const results = await Promise.all(updates);
     const hasError = results.some(r => r.error);
     if (hasError) toast.error("خطأ في حفظ الإعدادات");
@@ -306,7 +324,7 @@ export default function AdminDashboard() {
     { label: "الطلاب", value: stats.students, icon: Users, color: "text-primary" },
     { label: "المعلمين", value: stats.teachers, icon: GraduationCap, color: "text-secondary" },
     { label: "الحصص", value: stats.lessons, icon: BookOpen, color: "text-accent" },
-    { label: "الدخل", value: `${stats.income} ر.س`, icon: DollarSign, color: "text-success" },
+    { label: "الدخل", value: format(stats.income), icon: DollarSign, color: "text-success" },
   ];
 
   if (dataLoading) {
@@ -570,7 +588,7 @@ export default function AdminDashboard() {
                   <div className="flex justify-between items-center mb-2">
                     <div>
                       <p className="font-medium text-sm">{(w as any).profiles?.full_name}</p>
-                      <p className="text-lg font-bold">{w.amount} ر.س</p>
+                      <p className="text-lg font-bold">{format(w.amount)}</p>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded-full ${
                       w.status === "approved" ? "bg-success/10 text-success" :
@@ -785,6 +803,49 @@ export default function AdminDashboard() {
                           }}
                         />
                       </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Currency Settings */}
+              <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                <h3 className="font-semibold text-sm flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-primary" />
+                  عملة الموقع
+                </h3>
+                <p className="text-xs text-muted-foreground">الأسعار تُخزن بالدولار الأمريكي (USD) ويتم تحويلها تلقائياً حسب العملة المختارة وسعر الصرف</p>
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs">العملة المعروضة</Label>
+                    <Select value={activeCurrency} onValueChange={setActiveCurrency}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {ALL_CURRENCIES.map(c => (
+                          <SelectItem key={c.code} value={c.code}>
+                            {c.symbol} - {c.name} ({c.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {activeCurrency !== "USD" && (
+                    <div>
+                      <Label className="text-xs">سعر الصرف (1 دولار = ؟ {ALL_CURRENCIES.find(c => c.code === activeCurrency)?.symbol})</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        dir="ltr"
+                        value={exchangeRate}
+                        onChange={e => setExchangeRate(e.target.value)}
+                        placeholder="مثال: 3.75"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        مثال: إذا كان سعر الحصة 10$ سيظهر للمستخدم {(10 * (parseFloat(exchangeRate) || 1)).toFixed(2)} {ALL_CURRENCIES.find(c => c.code === activeCurrency)?.symbol}
+                      </p>
                     </div>
                   )}
                 </div>

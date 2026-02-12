@@ -11,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Plus, Edit, DollarSign, Calendar, CheckCircle, XCircle, MessageCircle, Send, ArrowRight } from "lucide-react";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 export default function TeacherDashboard() {
   const { user } = useAuthContext();
+  const { format, currency } = useCurrency();
   const [profile, setProfile] = useState<any>(null);
   const [lessons, setLessons] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
@@ -440,7 +442,7 @@ export default function TeacherDashboard() {
                   )}
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>المدة (دقيقة)</Label><Input type="number" value={newLesson.duration_minutes} onChange={(e) => setNewLesson({ ...newLesson, duration_minutes: parseInt(e.target.value) || 60 })} /></div>
-                    <div><Label>السعر (ر.س)</Label><Input type="number" value={newLesson.price} onChange={(e) => setNewLesson({ ...newLesson, price: parseFloat(e.target.value) || 0 })} /></div>
+                    <div><Label>السعر ($)</Label><Input type="number" value={newLesson.price} onChange={(e) => setNewLesson({ ...newLesson, price: parseFloat(e.target.value) || 0 })} /></div>
                   </div>
                   <div><Label>ملاحظات</Label><Textarea value={newLesson.notes} onChange={(e) => setNewLesson({ ...newLesson, notes: e.target.value })} /></div>
                   <Button onClick={handleAddLesson} variant="hero" className="w-full">إضافة الحصة</Button>
@@ -454,7 +456,7 @@ export default function TeacherDashboard() {
                     <div className="flex justify-between items-start">
                       <div>
                         <h3 className="font-semibold">{l.title}</h3>
-                        <p className="text-xs text-muted-foreground">{l.duration_minutes} دقيقة • {l.price} ر.س</p>
+                        <p className="text-xs text-muted-foreground">{l.duration_minutes} دقيقة • {format(l.price)}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Button size="sm" variant="ghost" onClick={() => handleEditLesson(l)}>
@@ -526,7 +528,7 @@ export default function TeacherDashboard() {
                     )}
                     <div className="grid grid-cols-2 gap-3">
                       <div><Label>المدة (دقيقة)</Label><Input type="number" value={editLesson.duration_minutes} onChange={(e) => setEditLesson({ ...editLesson, duration_minutes: parseInt(e.target.value) || 60 })} /></div>
-                      <div><Label>السعر (ر.س)</Label><Input type="number" value={editLesson.price} onChange={(e) => setEditLesson({ ...editLesson, price: parseFloat(e.target.value) || 0 })} /></div>
+                      <div><Label>السعر ($)</Label><Input type="number" value={editLesson.price} onChange={(e) => setEditLesson({ ...editLesson, price: parseFloat(e.target.value) || 0 })} /></div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Label>نشط</Label>
@@ -673,7 +675,7 @@ export default function TeacherDashboard() {
           <TabsContent value="earnings" className="mt-4 space-y-4">
             <div className="bg-card rounded-xl p-6 border border-border text-center">
               <DollarSign className="h-8 w-8 mx-auto text-success mb-2" />
-              <p className="text-2xl font-bold">{earnings.toFixed(2)} ر.س</p>
+              <p className="text-2xl font-bold">{format(earnings)}</p>
               <p className="text-sm text-muted-foreground">إجمالي الأرباح</p>
             </div>
 
@@ -687,7 +689,7 @@ export default function TeacherDashboard() {
               <h3 className="font-semibold">طلبات السحب السابقة</h3>
               {withdrawals.map((w) => (
                 <div key={w.id} className="p-3 rounded-lg border border-border flex justify-between items-center">
-                  <span className="font-medium">{w.amount} ر.س</span>
+                  <span className="font-medium">{format(w.amount)}</span>
                   <span className={`text-xs px-2 py-1 rounded-full ${w.status === "approved" ? "bg-success/10 text-success" : w.status === "rejected" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
                     {w.status === "pending" ? "قيد المراجعة" : w.status === "approved" ? "مقبول" : "مرفوض"}
                   </span>
