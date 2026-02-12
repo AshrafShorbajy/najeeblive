@@ -24,7 +24,7 @@ export default function AdminDashboard() {
   const { format } = useCurrency();
   const [dataLoading, setDataLoading] = useState(true);
   const navigate = useNavigate();
-  const [stats, setStats] = useState({ students: 0, teachers: 0, lessons: 0, income: 0 });
+  const [stats, setStats] = useState({ students: 0, teachers: 0, lessons: 0, income: 0, platformEarnings: 0, teacherEarnings: 0 });
   const [curricula, setCurricula] = useState<any[]>([]);
   const [gradeLevels, setGradeLevels] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -65,6 +65,9 @@ export default function AdminDashboard() {
   const [activeCurrency, setActiveCurrency] = useState("USD");
   const [exchangeRate, setExchangeRate] = useState("1");
   const [currencyPopoverOpen, setCurrencyPopoverOpen] = useState(false);
+  const [commissionRate, setCommissionRate] = useState("20");
+  const [accountingRecords, setAccountingRecords] = useState<any[]>([]);
+  const [accountingProfiles, setAccountingProfiles] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (loading) return;
@@ -123,11 +126,29 @@ export default function AdminDashboard() {
     const { data: completedBookings } = await supabase.from("bookings").select("amount").eq("status", "completed");
     const income = completedBookings?.reduce((sum, b) => sum + Number(b.amount), 0) ?? 0;
 
+    // Fetch accounting records
+    const { data: accData } = await supabase.from("accounting_records").select("*").order("created_at", { ascending: false });
+    const allAccRecords = accData ?? [];
+    setAccountingRecords(allAccRecords);
+    const platformEarnings = allAccRecords.reduce((sum, r) => sum + Number(r.platform_share), 0);
+    const teacherEarnings = allAccRecords.reduce((sum, r) => sum + Number(r.teacher_share), 0);
+
+    // Fetch profiles for accounting records
+    const accTeacherIds = [...new Set(allAccRecords.map(r => r.teacher_id))];
+    if (accTeacherIds.length > 0) {
+      const { data: accProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", accTeacherIds);
+      const accMap: Record<string, any> = {};
+      accProfiles?.forEach(p => { accMap[p.user_id] = p; });
+      setAccountingProfiles(accMap);
+    }
+
     setStats({
       students: enrichedStudents.length,
       teachers: enrichedTeachers.length,
       lessons: lessonCount ?? 0,
       income,
+      platformEarnings,
+      teacherEarnings,
     });
 
     if (isAdmin) {
@@ -169,6 +190,9 @@ export default function AdminDashboard() {
           const v = s.value as any;
           setActiveCurrency(v.activeCurrency || "USD");
           setExchangeRate(String(v.exchangeRate || 1));
+        }
+        if (s.key === "commission_rate" && typeof s.value === "number") {
+          setCommissionRate(String(s.value));
         }
       }
     }
@@ -302,6 +326,14 @@ export default function AdminDashboard() {
     } else {
       updates.push(supabase.from("site_settings").insert({ key: "currency_settings", value: currencyValue } as any) as any);
     }
+    // Upsert commission_rate
+    const commissionValue = parseFloat(commissionRate) || 20;
+    const { data: existingComm } = await supabase.from("site_settings").select("id").eq("key", "commission_rate").maybeSingle();
+    if (existingComm) {
+      updates.push(supabase.from("site_settings").update({ value: commissionValue } as any).eq("key", "commission_rate"));
+    } else {
+      updates.push(supabase.from("site_settings").insert({ key: "commission_rate", value: commissionValue } as any) as any);
+    }
     const results = await Promise.all(updates);
     const hasError = results.some(r => r.error);
     if (hasError) toast.error("خطأ في حفظ الإعدادات");
@@ -327,7 +359,8 @@ export default function AdminDashboard() {
     { label: "الطلاب", value: stats.students, icon: Users, color: "text-primary" },
     { label: "المعلمين", value: stats.teachers, icon: GraduationCap, color: "text-secondary" },
     { label: "الحصص", value: stats.lessons, icon: BookOpen, color: "text-accent" },
-    { label: "الدخل", value: format(stats.income), icon: DollarSign, color: "text-success" },
+    { label: "إجمالي الدخل", value: format(stats.income), icon: DollarSign, color: "text-success" },
+    { label: "أرباح المنصة", value: format(stats.platformEarnings), icon: BarChart3, color: "text-primary" },
   ];
 
   if (dataLoading) {
@@ -373,6 +406,7 @@ export default function AdminDashboard() {
             {isAdmin && <TabsTrigger value="orders">الطلبات</TabsTrigger>}
             {isAdmin && <TabsTrigger value="skills">مهارات</TabsTrigger>}
             {isAdmin && <TabsTrigger value="withdrawals">طلبات السحب</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="accounting">المحاسبة</TabsTrigger>}
             {isAdmin && <TabsTrigger value="site-settings">إعدادات الموقع</TabsTrigger>}
           </TabsList>
 
@@ -878,10 +912,126 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+              {/* Commission Rate Settings */}
+              <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                <h3 className="font-semibold text-sm flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  نسبة عمولة المنصة
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  يتم خصم هذه النسبة من إجمالي مبلغ الحصة عند إتمامها كحصة المنصة، والباقي يذهب للمعلم
+                </p>
+                <div>
+                  <Label className="text-xs">نسبة العمولة (%)</Label>
+                  <Input
+                    type="number"
+                    step="1"
+                    min="0"
+                    max="100"
+                    dir="ltr"
+                    value={commissionRate}
+                    onChange={e => setCommissionRate(e.target.value)}
+                    placeholder="مثال: 20"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    مثال: حصة بـ 100$ → المنصة: {((100 * (parseFloat(commissionRate) || 0)) / 100).toFixed(2)}$ | المعلم: {(100 - (100 * (parseFloat(commissionRate) || 0)) / 100).toFixed(2)}$
+                  </p>
+                </div>
+              </div>
+
               <Button onClick={saveSiteSettings} variant="hero" className="w-full" disabled={savingSettings}>
                 <Save className="h-4 w-4 ml-1" />
                 {savingSettings ? "جارٍ الحفظ..." : "حفظ جميع الإعدادات"}
               </Button>
+            </TabsContent>
+          )}
+
+          {/* Accounting Tab */}
+          {isAdmin && (
+            <TabsContent value="accounting" className="mt-4 space-y-4">
+              {/* Accounting Summary */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-card rounded-xl p-4 border border-border text-center">
+                  <DollarSign className="h-6 w-6 mx-auto mb-1 text-primary" />
+                  <p className="text-lg font-bold">{format(stats.income)}</p>
+                  <p className="text-[10px] text-muted-foreground">إجمالي الإيرادات</p>
+                </div>
+                <div className="bg-card rounded-xl p-4 border border-border text-center">
+                  <BarChart3 className="h-6 w-6 mx-auto mb-1 text-success" />
+                  <p className="text-lg font-bold">{format(stats.platformEarnings)}</p>
+                  <p className="text-[10px] text-muted-foreground">أرباح المنصة</p>
+                </div>
+                <div className="bg-card rounded-xl p-4 border border-border text-center">
+                  <GraduationCap className="h-6 w-6 mx-auto mb-1 text-secondary" />
+                  <p className="text-lg font-bold">{format(stats.teacherEarnings)}</p>
+                  <p className="text-[10px] text-muted-foreground">أرباح المعلمين</p>
+                </div>
+              </div>
+
+              {/* Per-Teacher Breakdown */}
+              <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                <h3 className="font-semibold text-sm">أرباح المعلمين بالتفصيل</h3>
+                {(() => {
+                  const teacherTotals: Record<string, { total: number; platform: number; teacher: number; count: number }> = {};
+                  accountingRecords.forEach(r => {
+                    if (!teacherTotals[r.teacher_id]) teacherTotals[r.teacher_id] = { total: 0, platform: 0, teacher: 0, count: 0 };
+                    teacherTotals[r.teacher_id].total += Number(r.total_amount);
+                    teacherTotals[r.teacher_id].platform += Number(r.platform_share);
+                    teacherTotals[r.teacher_id].teacher += Number(r.teacher_share);
+                    teacherTotals[r.teacher_id].count += 1;
+                  });
+                  const entries = Object.entries(teacherTotals);
+                  if (entries.length === 0) return <p className="text-xs text-muted-foreground text-center py-4">لا توجد سجلات محاسبية بعد</p>;
+                  return entries.map(([teacherId, totals]) => (
+                    <div key={teacherId} className="border border-border rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-sm">{accountingProfiles[teacherId]?.full_name || "معلم"}</p>
+                        <span className="text-xs text-muted-foreground">{totals.count} حصة مكتملة</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div className="text-center p-2 bg-muted/50 rounded">
+                          <p className="font-bold">{format(totals.total)}</p>
+                          <p className="text-muted-foreground">الإجمالي</p>
+                        </div>
+                        <div className="text-center p-2 bg-muted/50 rounded">
+                          <p className="font-bold text-primary">{format(totals.platform)}</p>
+                          <p className="text-muted-foreground">حصة المنصة</p>
+                        </div>
+                        <div className="text-center p-2 bg-muted/50 rounded">
+                          <p className="font-bold text-success">{format(totals.teacher)}</p>
+                          <p className="text-muted-foreground">حصة المعلم</p>
+                        </div>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              {/* Recent Records */}
+              <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                <h3 className="font-semibold text-sm">آخر العمليات المحاسبية</h3>
+                <div className="space-y-2">
+                  {accountingRecords.slice(0, 20).map(r => (
+                    <div key={r.id} className="border border-border rounded-lg p-3 text-xs space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">{accountingProfiles[r.teacher_id]?.full_name || "معلم"}</span>
+                        <span className="text-muted-foreground">{new Date(r.created_at).toLocaleDateString("ar")}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span>المبلغ: {format(r.total_amount)}</span>
+                        <span>العمولة: {r.commission_rate}%</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-primary">المنصة: {format(r.platform_share)}</span>
+                        <span className="text-success">المعلم: {format(r.teacher_share)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {accountingRecords.length === 0 && (
+                    <p className="text-center text-muted-foreground py-4 text-xs">لا توجد سجلات بعد — ستظهر هنا بعد إتمام أول حصة</p>
+                  )}
+                </div>
+              </div>
             </TabsContent>
           )}
         </Tabs>

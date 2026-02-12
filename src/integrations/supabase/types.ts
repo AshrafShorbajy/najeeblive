@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounting_records: {
+        Row: {
+          booking_id: string
+          commission_rate: number
+          created_at: string
+          id: string
+          lesson_id: string
+          platform_share: number
+          status: string
+          student_id: string
+          teacher_id: string
+          teacher_share: number
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          booking_id: string
+          commission_rate?: number
+          created_at?: string
+          id?: string
+          lesson_id: string
+          platform_share?: number
+          status?: string
+          student_id: string
+          teacher_id: string
+          teacher_share?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string
+          commission_rate?: number
+          created_at?: string
+          id?: string
+          lesson_id?: string
+          platform_share?: number
+          status?: string
+          student_id?: string
+          teacher_id?: string
+          teacher_share?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_records_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       announcements: {
         Row: {
           created_at: string
