@@ -12,11 +12,13 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 export default function LessonDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuthContext();
   const navigate = useNavigate();
+  const { format } = useCurrency();
   const [lesson, setLesson] = useState<any>(null);
   const [teacher, setTeacher] = useState<any>(null);
   const [bookings, setBookings] = useState<any[]>([]);
@@ -211,7 +213,7 @@ export default function LessonDetailPage() {
                 )}
 
                 <div className="flex items-center justify-between pt-4 border-t border-border">
-                  <span className="text-xl font-bold text-primary">{lesson.price} ر.س</span>
+                  <span className="text-xl font-bold text-primary">{format(lesson.price)}</span>
                   <Dialog open={buyDialogOpen} onOpenChange={setBuyDialogOpen}>
                     <DialogTrigger asChild>
                       <Button variant="hero">شراء الحصة</Button>
@@ -221,7 +223,7 @@ export default function LessonDetailPage() {
                         <DialogTitle>شراء الحصة</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-4">
-                        <p className="text-sm text-muted-foreground">المبلغ: <strong>{lesson.price} ر.س</strong></p>
+                        <p className="text-sm text-muted-foreground">المبلغ: <strong>{format(lesson.price)}</strong></p>
                         <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
                           {paymentSettings?.paypal?.enabled && (
                             <div className="flex items-center gap-2">
