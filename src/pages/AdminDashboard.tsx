@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import TeachersManagement from "@/components/admin/TeachersManagement";
 import OrdersManagement from "@/components/admin/OrdersManagement";
+import InvoicesManagement from "@/components/admin/InvoicesManagement";
 
 export default function AdminDashboard() {
   const { user, loading, isAdmin, isSupervisor, signOut } = useAuthContext();
@@ -347,6 +348,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="grades">الصفوف</TabsTrigger>
             <TabsTrigger value="subjects">المواد</TabsTrigger>
             <TabsTrigger value="announcements">الإعلانات</TabsTrigger>
+            {isAdmin && <TabsTrigger value="invoices">الفواتير</TabsTrigger>}
             {isAdmin && <TabsTrigger value="orders">الطلبات</TabsTrigger>}
             {isAdmin && <TabsTrigger value="skills">مهارات</TabsTrigger>}
             {isAdmin && <TabsTrigger value="withdrawals">طلبات السحب</TabsTrigger>}
@@ -529,6 +531,12 @@ export default function AdminDashboard() {
               ))}
             </div>
           </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="invoices" className="mt-4">
+              <InvoicesManagement />
+            </TabsContent>
+          )}
 
           {isAdmin && (
             <TabsContent value="orders" className="mt-4">

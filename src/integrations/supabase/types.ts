@@ -214,6 +214,59 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          admin_notes: string | null
+          amount: number
+          booking_id: string
+          created_at: string
+          id: string
+          lesson_id: string
+          payment_method: string | null
+          payment_receipt_url: string | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          student_id: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          amount?: number
+          booking_id: string
+          created_at?: string
+          id?: string
+          lesson_id: string
+          payment_method?: string | null
+          payment_receipt_url?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          student_id: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          amount?: number
+          booking_id?: string
+          created_at?: string
+          id?: string
+          lesson_id?: string
+          payment_method?: string | null
+          payment_receipt_url?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          student_id?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lessons: {
         Row: {
           created_at: string
@@ -565,6 +618,7 @@ export type Database = {
         | "scheduled"
         | "completed"
         | "cancelled"
+      invoice_status: "pending" | "paid" | "rejected"
       lesson_type: "tutoring" | "bag_review" | "skills"
       payment_method: "paypal" | "bank_transfer"
     }
@@ -702,6 +756,7 @@ export const Constants = {
         "completed",
         "cancelled",
       ],
+      invoice_status: ["pending", "paid", "rejected"],
       lesson_type: ["tutoring", "bag_review", "skills"],
       payment_method: ["paypal", "bank_transfer"],
     },
