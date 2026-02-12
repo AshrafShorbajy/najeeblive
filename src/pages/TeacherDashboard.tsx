@@ -162,6 +162,7 @@ export default function TeacherDashboard() {
     const { data, error } = await supabase.from("bookings")
       .select("*, lessons(title)")
       .eq("teacher_id", user.id)
+      .in("status", ["accepted", "scheduled", "completed", "cancelled"])
       .order("created_at", { ascending: false });
     
     console.log("Bookings fetch result:", { data, error, userId: user.id });

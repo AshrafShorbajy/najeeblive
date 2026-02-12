@@ -90,7 +90,7 @@ export default function LessonDetailPage() {
       receiptUrl = publicUrl;
     }
 
-    const { error } = await supabase.from("bookings").insert({
+    const { data: bookingData, error } = await supabase.from("bookings").insert({
       student_id: user.id,
       lesson_id: lesson.id,
       teacher_id: lesson.teacher_id,
@@ -98,14 +98,24 @@ export default function LessonDetailPage() {
       payment_method: paymentMethod as any,
       payment_receipt_url: receiptUrl,
       status: "pending",
-    });
+    }).select().single();
 
-    if (error) {
+    if (error || !bookingData) {
       toast.error("حدث خطأ في الحجز");
     } else {
-      toast.success("تم الحجز بنجاح! سيقوم المعلم بتأكيد الموعد");
+      // Auto-create invoice
+      await supabase.from("invoices").insert({
+        booking_id: bookingData.id,
+        student_id: user.id,
+        teacher_id: lesson.teacher_id,
+        lesson_id: lesson.id,
+        amount: lesson.price,
+        payment_method: paymentMethod,
+        payment_receipt_url: receiptUrl,
+      } as any);
+
+      toast.success("تم إرسال الطلب بنجاح! سيتم مراجعة الفاتورة من الإدارة");
       setBuyDialogOpen(false);
-      // Refresh bookings
       const { data } = await supabase.from("bookings").select("*").eq("lesson_id", id).eq("student_id", user.id);
       setBookings(data ?? []);
     }
