@@ -12,6 +12,7 @@ import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, D
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import TeachersManagement from "@/components/admin/TeachersManagement";
+import OrdersManagement from "@/components/admin/OrdersManagement";
 
 export default function AdminDashboard() {
   const { user, loading, isAdmin, isSupervisor, signOut } = useAuthContext();
@@ -346,6 +347,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="grades">الصفوف</TabsTrigger>
             <TabsTrigger value="subjects">المواد</TabsTrigger>
             <TabsTrigger value="announcements">الإعلانات</TabsTrigger>
+            {isAdmin && <TabsTrigger value="orders">الطلبات</TabsTrigger>}
             {isAdmin && <TabsTrigger value="skills">مهارات</TabsTrigger>}
             {isAdmin && <TabsTrigger value="withdrawals">طلبات السحب</TabsTrigger>}
             {isAdmin && <TabsTrigger value="site-settings">إعدادات الموقع</TabsTrigger>}
@@ -527,6 +529,12 @@ export default function AdminDashboard() {
               ))}
             </div>
           </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="orders" className="mt-4">
+              <OrdersManagement />
+            </TabsContent>
+          )}
 
           {isAdmin && (
             <TabsContent value="skills" className="mt-4 space-y-4">
