@@ -68,6 +68,11 @@ export default function LessonDetailPage() {
       return;
     }
 
+    if (paymentMethod === "bank_transfer" && !receiptFile) {
+      toast.error("يجب إرفاق صورة إيصال التحويل البنكي لإتمام الطلب");
+      return;
+    }
+
     setBuying(true);
     let receiptUrl = null;
 
