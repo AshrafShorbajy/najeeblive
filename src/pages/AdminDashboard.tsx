@@ -50,10 +50,10 @@ export default function AdminDashboard() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<{
     paypal: { enabled: boolean; email: string };
-    bank_transfer: { enabled: boolean; account_number: string; account_holder: string; branch: string };
+    bank_transfer: { enabled: boolean; account_number: string; account_holder: string; branch: string; bank_logo_url: string };
   }>({
     paypal: { enabled: true, email: "" },
-    bank_transfer: { enabled: true, account_number: "", account_holder: "", branch: "" },
+    bank_transfer: { enabled: true, account_number: "", account_holder: "", branch: "", bank_logo_url: "" },
   });
 
   useEffect(() => {
@@ -747,6 +747,26 @@ export default function AdminDashboard() {
                           placeholder="اسم الفرع"
                           value={paymentMethods.bank_transfer.branch}
                           onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, branch: e.target.value } }))}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">لوجو البنك</Label>
+                        {paymentMethods.bank_transfer.bank_logo_url && (
+                          <img src={paymentMethods.bank_transfer.bank_logo_url} alt="لوجو البنك" className="h-12 w-auto mb-2 rounded border border-border object-contain" />
+                        )}
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const path = `bank-logos/${Date.now()}-${file.name}`;
+                            const { error } = await supabase.storage.from("uploads").upload(path, file);
+                            if (error) { toast.error("فشل رفع اللوجو"); return; }
+                            const { data: urlData } = supabase.storage.from("uploads").getPublicUrl(path);
+                            setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, bank_logo_url: urlData.publicUrl } }));
+                            toast.success("تم رفع اللوجو");
+                          }}
                         />
                       </div>
                     </div>
