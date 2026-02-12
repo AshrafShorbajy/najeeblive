@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Search, Eye, FileText, CheckCircle, XCircle, Image, Clock } from "lucide-react";
+import { Search, Eye, FileText, CheckCircle, XCircle, Image, Clock, Printer } from "lucide-react";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 const INVOICE_STATUS_MAP: Record<string, { label: string; color: string }> = {
   pending: { label: "بانتظار المراجعة", color: "bg-yellow-100 text-yellow-800 border-yellow-300" },
@@ -16,8 +17,10 @@ const INVOICE_STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 export default function InvoicesManagement() {
+  const { format } = useCurrency();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<Record<string, any>>({});
+  const [emails, setEmails] = useState<Record<string, string>>({});
   const [lessonsMap, setLessonsMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -26,10 +29,20 @@ export default function InvoicesManagement() {
   const [adminNotes, setAdminNotes] = useState("");
   const [updating, setUpdating] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [printInvoice, setPrintInvoice] = useState<any>(null);
+  const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchInvoices();
+    fetchEmails();
   }, []);
+
+  const fetchEmails = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("get-user-emails");
+      if (data?.emails) setEmails(data.emails);
+    } catch {}
+  };
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -44,7 +57,6 @@ export default function InvoicesManagement() {
     const userIds = [...new Set(allInvoices.flatMap(i => [i.student_id, i.teacher_id]))];
     const lessonIds = [...new Set(allInvoices.map(i => i.lesson_id))];
 
-    // Fetch profiles
     if (userIds.length > 0) {
       const { data: pData } = await supabase
         .from("profiles")
@@ -55,7 +67,6 @@ export default function InvoicesManagement() {
       setProfiles(pMap);
     }
 
-    // Fetch lessons with curriculum/grade/subject
     if (lessonIds.length > 0) {
       const { data: lData } = await supabase
         .from("lessons")
@@ -72,21 +83,17 @@ export default function InvoicesManagement() {
   const handleApprove = async () => {
     if (!selectedInvoice) return;
     setUpdating(true);
-
     const { error } = await supabase
       .from("invoices")
       .update({ status: "paid" as any, admin_notes: adminNotes || null })
       .eq("id", selectedInvoice.id);
-
     if (error) {
       toast.error("فشل تحديث الفاتورة");
     } else {
-      // Update booking status to accepted so teacher can see it
       await supabase
         .from("bookings")
         .update({ status: "accepted" as any })
         .eq("id", selectedInvoice.booking_id);
-
       toast.success("تم اعتماد الفاتورة وإصدار الطلب للمعلم");
       setSelectedInvoice(null);
       setAdminNotes("");
@@ -102,12 +109,10 @@ export default function InvoicesManagement() {
       return;
     }
     setUpdating(true);
-
     const { error } = await supabase
       .from("invoices")
       .update({ status: "rejected" as any, admin_notes: adminNotes })
       .eq("id", selectedInvoice.id);
-
     if (error) {
       toast.error("فشل تحديث الفاتورة");
     } else {
@@ -115,13 +120,64 @@ export default function InvoicesManagement() {
         .from("bookings")
         .update({ status: "cancelled" as any })
         .eq("id", selectedInvoice.booking_id);
-
       toast.success("تم رفض الفاتورة");
       setSelectedInvoice(null);
       setAdminNotes("");
       fetchInvoices();
     }
     setUpdating(false);
+  };
+
+  const handlePrint = (inv: any) => {
+    setPrintInvoice(inv);
+    setTimeout(() => {
+      if (printRef.current) {
+        const printWindow = window.open("", "_blank");
+        if (!printWindow) return;
+        const content = printRef.current.innerHTML;
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html dir="rtl" lang="ar">
+          <head>
+            <meta charset="utf-8" />
+            <title>فاتورة #${inv.id.slice(0, 8)}</title>
+            <style>
+              @page { size: A4; margin: 20mm; }
+              * { box-sizing: border-box; margin: 0; padding: 0; }
+              body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; direction: rtl; color: #1a1a1a; font-size: 14px; line-height: 1.6; }
+              .invoice-page { width: 100%; max-width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm; }
+              .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; }
+              .header h1 { font-size: 28px; color: #2563eb; }
+              .header .invoice-num { font-size: 13px; color: #666; }
+              .section { margin-bottom: 20px; }
+              .section-title { font-size: 15px; font-weight: 700; color: #2563eb; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; margin-bottom: 10px; }
+              .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; }
+              .info-row { display: flex; gap: 8px; }
+              .info-label { color: #666; min-width: 100px; }
+              .info-value { font-weight: 600; }
+              table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+              th, td { border: 1px solid #e5e7eb; padding: 10px 14px; text-align: right; }
+              th { background: #f0f4ff; font-weight: 700; color: #2563eb; }
+              .total-row td { font-weight: 700; font-size: 16px; background: #f8fafc; }
+              .status-badge { display: inline-block; padding: 4px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+              .status-paid { background: #dcfce7; color: #166534; }
+              .status-pending { background: #fef9c3; color: #854d0e; }
+              .status-rejected { background: #fee2e2; color: #991b1b; }
+              .footer { margin-top: 40px; text-align: center; color: #999; font-size: 12px; border-top: 1px solid #e5e7eb; padding-top: 16px; }
+              @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+            </style>
+          </head>
+          <body>
+            ${content}
+          </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => { printWindow.print(); }, 300);
+      }
+      setPrintInvoice(null);
+    }, 100);
   };
 
   const filtered = invoices.filter(inv => {
@@ -139,6 +195,117 @@ export default function InvoicesManagement() {
   if (loading) {
     return <div className="text-center py-8 text-muted-foreground">جارٍ تحميل الفواتير...</div>;
   }
+
+  const renderPrintInvoice = (inv: any) => {
+    const student = profiles[inv.student_id];
+    const teacher = profiles[inv.teacher_id];
+    const lesson = lessonsMap[inv.lesson_id];
+    const studentEmail = emails[inv.student_id] || "—";
+    const status = INVOICE_STATUS_MAP[inv.status] || { label: inv.status };
+    const statusClass = inv.status === "paid" ? "status-paid" : inv.status === "rejected" ? "status-rejected" : "status-pending";
+
+    return (
+      <div className="invoice-page">
+        <div className="header">
+          <div>
+            <h1>فاتورة</h1>
+            <div className="invoice-num">رقم الفاتورة: {inv.id.slice(0, 8).toUpperCase()}</div>
+          </div>
+          <div style={{ textAlign: "left" }}>
+            <div style={{ fontSize: "13px", color: "#666" }}>التاريخ: {new Date(inv.created_at).toLocaleDateString("ar")}</div>
+            <span className={`status-badge ${statusClass}`}>{status.label}</span>
+          </div>
+        </div>
+
+        <div className="section">
+          <div className="section-title">معلومات الطالب</div>
+          <div className="info-grid">
+            <div className="info-row">
+              <span className="info-label">الاسم:</span>
+              <span className="info-value">{student?.full_name || "—"}</span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">البريد الإلكتروني:</span>
+              <span className="info-value" dir="ltr">{studentEmail}</span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">رقم الهاتف:</span>
+              <span className="info-value" dir="ltr">{student?.phone || "—"}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="section">
+          <div className="section-title">معلومات المعلم</div>
+          <div className="info-grid">
+            <div className="info-row">
+              <span className="info-label">الاسم:</span>
+              <span className="info-value">{teacher?.full_name || "—"}</span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">رقم الهاتف:</span>
+              <span className="info-value" dir="ltr">{teacher?.phone || "—"}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="section">
+          <div className="section-title">تفاصيل الحصة</div>
+          <table>
+            <thead>
+              <tr>
+                <th>الحصة</th>
+                <th>النوع</th>
+                <th>المدة</th>
+                <th>المنهج</th>
+                <th>المادة</th>
+                <th>المبلغ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>{lesson?.title || "—"}</td>
+                <td>{lesson?.lesson_type === "tutoring" ? "دروس خصوصية" : lesson?.lesson_type === "skills" ? "مهارات" : "مراجعة حقيبة"}</td>
+                <td>{lesson?.duration_minutes || "—"} دقيقة</td>
+                <td>{lesson?.curricula?.name || "—"}</td>
+                <td>{lesson?.subjects?.name || "—"}</td>
+                <td>{format(inv.amount)}</td>
+              </tr>
+              <tr className="total-row">
+                <td colSpan={5}>الإجمالي</td>
+                <td>{format(inv.amount)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="section">
+          <div className="section-title">معلومات الدفع</div>
+          <div className="info-grid">
+            <div className="info-row">
+              <span className="info-label">طريقة الدفع:</span>
+              <span className="info-value">{inv.payment_method === "paypal" ? "PayPal" : inv.payment_method === "bank_transfer" ? "تحويل بنكي" : "غير محدد"}</span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">تاريخ الفاتورة:</span>
+              <span className="info-value">{new Date(inv.created_at).toLocaleString("ar")}</span>
+            </div>
+          </div>
+        </div>
+
+        {inv.admin_notes && (
+          <div className="section">
+            <div className="section-title">ملاحظات</div>
+            <p>{inv.admin_notes}</p>
+          </div>
+        )}
+
+        <div className="footer">
+          تم إصدار هذه الفاتورة إلكترونياً
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -207,7 +374,7 @@ export default function InvoicesManagement() {
                     <span>المعلم: {teacher?.full_name || "—"}</span>
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span>{inv.amount} ر.س</span>
+                    <span>{format(inv.amount)}</span>
                     <span>{inv.payment_method === "paypal" ? "PayPal" : inv.payment_method === "bank_transfer" ? "تحويل بنكي" : "—"}</span>
                     <span>{new Date(inv.created_at).toLocaleDateString("ar")}</span>
                   </div>
@@ -230,6 +397,7 @@ export default function InvoicesManagement() {
             const student = profiles[inv.student_id];
             const teacher = profiles[inv.teacher_id];
             const lesson = lessonsMap[inv.lesson_id];
+            const studentEmail = emails[inv.student_id] || "—";
             const status = INVOICE_STATUS_MAP[inv.status] || { label: inv.status, color: "bg-muted" };
 
             return (
@@ -253,6 +421,7 @@ export default function InvoicesManagement() {
                   <div className="bg-muted/50 rounded-lg p-3 space-y-1">
                     <p className="text-xs font-semibold text-muted-foreground">معلومات الطالب</p>
                     <p className="text-sm font-medium">{student?.full_name || "—"}</p>
+                    <p className="text-xs text-muted-foreground" dir="ltr">{studentEmail}</p>
                     {student?.phone && <p className="text-xs text-muted-foreground" dir="ltr">{student.phone}</p>}
                   </div>
 
@@ -304,7 +473,7 @@ export default function InvoicesManagement() {
                     <p className="text-xs font-semibold text-muted-foreground">معلومات الدفع</p>
                     <div className="flex justify-between items-center">
                       <span className="text-sm">المبلغ</span>
-                      <span className="text-lg font-bold text-primary">{inv.amount} ر.س</span>
+                      <span className="text-lg font-bold text-primary">{format(inv.amount)}</span>
                     </div>
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-muted-foreground">طريقة الدفع</span>
@@ -359,18 +528,28 @@ export default function InvoicesManagement() {
                   )}
 
                   {/* Actions */}
-                  {inv.status === "pending" && (
-                    <div className="flex gap-2 pt-2">
-                      <Button onClick={handleApprove} disabled={updating} className="flex-1" variant="hero">
-                        <CheckCircle className="h-4 w-4 ml-1" />
-                        {updating ? "جارٍ..." : "اعتماد الفاتورة"}
-                      </Button>
-                      <Button onClick={handleReject} disabled={updating} variant="destructive" className="flex-1">
-                        <XCircle className="h-4 w-4 ml-1" />
-                        {updating ? "جارٍ..." : "رفض"}
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex gap-2 pt-2 flex-wrap">
+                    <Button
+                      onClick={(e) => { e.stopPropagation(); handlePrint(inv); }}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Printer className="h-4 w-4 ml-1" />
+                      طباعة الفاتورة
+                    </Button>
+                    {inv.status === "pending" && (
+                      <>
+                        <Button onClick={handleApprove} disabled={updating} className="flex-1" variant="hero">
+                          <CheckCircle className="h-4 w-4 ml-1" />
+                          {updating ? "جارٍ..." : "اعتماد"}
+                        </Button>
+                        <Button onClick={handleReject} disabled={updating} variant="destructive" className="flex-1">
+                          <XCircle className="h-4 w-4 ml-1" />
+                          {updating ? "جارٍ..." : "رفض"}
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </>
             );
@@ -386,6 +565,15 @@ export default function InvoicesManagement() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Hidden Print Template */}
+      {printInvoice && (
+        <div style={{ position: "absolute", left: "-9999px", top: 0 }}>
+          <div ref={printRef}>
+            {renderPrintInvoice(printInvoice)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
