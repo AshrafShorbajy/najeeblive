@@ -20,6 +20,7 @@ export default function TeacherDashboard() {
   const [lessons, setLessons] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [earnings, setEarnings] = useState(0);
+  const [withdrawableBalance, setWithdrawableBalance] = useState(0);
   const [accountingRecords, setAccountingRecords] = useState<any[]>([]);
   const [commissionRate, setCommissionRate] = useState(20);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
@@ -164,6 +165,13 @@ export default function TeacherDashboard() {
     setAccountingRecords(records);
     const totalTeacherShare = records.reduce((sum, r) => sum + Number(r.teacher_share), 0);
     setEarnings(totalTeacherShare);
+    // Calculate withdrawable balance (earnings - approved withdrawals)
+    const { data: approvedW } = await supabase.from("withdrawal_requests")
+      .select("amount")
+      .eq("teacher_id", user.id)
+      .eq("status", "approved");
+    const totalWithdrawn = (approvedW ?? []).reduce((sum, w) => sum + Number(w.amount), 0);
+    setWithdrawableBalance(totalTeacherShare - totalWithdrawn);
   };
 
   const fetchCommissionRate = async () => {
@@ -340,15 +348,21 @@ export default function TeacherDashboard() {
 
   const handleWithdraw = async () => {
     if (!user || !withdrawAmount) return;
+    const amount = parseFloat(withdrawAmount);
+    if (amount > withdrawableBalance) {
+      toast.error("المبلغ المطلوب أكبر من الرصيد القابل للسحب");
+      return;
+    }
     const { error } = await supabase.from("withdrawal_requests").insert({
       teacher_id: user.id,
-      amount: parseFloat(withdrawAmount),
+      amount,
     });
     if (error) toast.error("خطأ"); else {
       toast.success("تم إرسال طلب السحب");
       setWithdrawAmount("");
-      const { data } = await supabase.from("withdrawal_requests").select("*").eq("teacher_id", user.id);
+      const { data } = await supabase.from("withdrawal_requests").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false });
       setWithdrawals(data ?? []);
+      fetchAccountingRecords(); // refresh withdrawable balance
     }
   };
 
@@ -714,12 +728,12 @@ export default function TeacherDashboard() {
               <div className="bg-card rounded-xl p-4 border border-border text-center">
                 <DollarSign className="h-6 w-6 mx-auto text-success mb-1" />
                 <p className="text-xl font-bold">{format(earnings)}</p>
-                <p className="text-[10px] text-muted-foreground">صافي أرباحك</p>
+                <p className="text-[10px] text-muted-foreground">إجمالي الأرباح من المنصة</p>
               </div>
               <div className="bg-card rounded-xl p-4 border border-border text-center">
-                <DollarSign className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
-                <p className="text-xl font-bold">{format(accountingRecords.reduce((s, r) => s + Number(r.total_amount), 0))}</p>
-                <p className="text-[10px] text-muted-foreground">إجمالي قبل العمولة</p>
+                <DollarSign className="h-6 w-6 mx-auto text-primary mb-1" />
+                <p className="text-xl font-bold">{format(withdrawableBalance)}</p>
+                <p className="text-[10px] text-muted-foreground">رصيد الأرباح القابل للسحب</p>
               </div>
             </div>
             <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground text-center">
