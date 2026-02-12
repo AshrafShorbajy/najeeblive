@@ -48,6 +48,13 @@ export default function AdminDashboard() {
   const [siteLogo, setSiteLogo] = useState("");
   const [offers, setOffers] = useState<{title: string; description: string; image_url?: string}[]>([]);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState<{
+    paypal: { enabled: boolean; email: string };
+    bank_transfer: { enabled: boolean; account_number: string; bank_name: string; account_holder: string; iban: string; instructions: string };
+  }>({
+    paypal: { enabled: true, email: "" },
+    bank_transfer: { enabled: true, account_number: "", bank_name: "", account_holder: "", iban: "", instructions: "" },
+  });
 
   useEffect(() => {
     if (loading) return;
@@ -141,6 +148,13 @@ export default function AdminDashboard() {
         if (s.key === "home_banner_image") setBannerImage(typeof s.value === "string" ? s.value : "");
         if (s.key === "site_logo") setSiteLogo(typeof s.value === "string" ? s.value : "");
         if (s.key === "offers") setOffers(Array.isArray(s.value) ? s.value as any : []);
+        if (s.key === "payment_methods" && typeof s.value === "object" && s.value !== null) {
+          const v = s.value as any;
+          setPaymentMethods(prev => ({
+            paypal: { ...prev.paypal, ...v.paypal },
+            bank_transfer: { ...prev.bank_transfer, ...v.bank_transfer },
+          }));
+        }
       }
     }
   };
@@ -258,6 +272,13 @@ export default function AdminDashboard() {
       supabase.from("site_settings").update({ value: siteLogo } as any).eq("key", "site_logo"),
       supabase.from("site_settings").update({ value: offers } as any).eq("key", "offers"),
     ];
+    // Upsert payment_methods
+    const { data: existingPM } = await supabase.from("site_settings").select("id").eq("key", "payment_methods").maybeSingle();
+    if (existingPM) {
+      updates.push(supabase.from("site_settings").update({ value: paymentMethods } as any).eq("key", "payment_methods"));
+    } else {
+      updates.push(supabase.from("site_settings").insert({ key: "payment_methods", value: paymentMethods } as any) as any);
+    }
     const results = await Promise.all(updates);
     const hasError = results.some(r => r.error);
     if (hasError) toast.error("خطأ في حفظ الإعدادات");
@@ -654,6 +675,101 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Payment Methods */}
+              <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                <h3 className="font-semibold text-sm flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-primary" />
+                  طرق الدفع
+                </h3>
+
+                {/* PayPal */}
+                <div className="border border-border rounded-lg p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-sm">PayPal</h4>
+                      <p className="text-xs text-muted-foreground">استقبال المبالغ عبر بايبال</p>
+                    </div>
+                    <Switch
+                      checked={paymentMethods.paypal.enabled}
+                      onCheckedChange={(v) => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, enabled: v } }))}
+                    />
+                  </div>
+                  {paymentMethods.paypal.enabled && (
+                    <div>
+                      <Label className="text-xs">بريد استقبال المبالغ (PayPal Email)</Label>
+                      <Input
+                        dir="ltr"
+                        type="email"
+                        placeholder="payment@example.com"
+                        value={paymentMethods.paypal.email}
+                        onChange={e => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, email: e.target.value } }))}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Bank Transfer */}
+                <div className="border border-border rounded-lg p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-sm">تحويل بنكي</h4>
+                      <p className="text-xs text-muted-foreground">استقبال المبالغ عبر التحويل البنكي</p>
+                    </div>
+                    <Switch
+                      checked={paymentMethods.bank_transfer.enabled}
+                      onCheckedChange={(v) => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, enabled: v } }))}
+                    />
+                  </div>
+                  {paymentMethods.bank_transfer.enabled && (
+                    <div className="space-y-2">
+                      <div>
+                        <Label className="text-xs">اسم البنك</Label>
+                        <Input
+                          placeholder="مثال: بنك الراجحي"
+                          value={paymentMethods.bank_transfer.bank_name}
+                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, bank_name: e.target.value } }))}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">اسم صاحب الحساب</Label>
+                        <Input
+                          placeholder="الاسم كما هو مسجل في البنك"
+                          value={paymentMethods.bank_transfer.account_holder}
+                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, account_holder: e.target.value } }))}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">رقم الحساب</Label>
+                        <Input
+                          dir="ltr"
+                          placeholder="رقم الحساب البنكي"
+                          value={paymentMethods.bank_transfer.account_number}
+                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, account_number: e.target.value } }))}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">رقم الآيبان (IBAN)</Label>
+                        <Input
+                          dir="ltr"
+                          placeholder="SA..."
+                          value={paymentMethods.bank_transfer.iban}
+                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, iban: e.target.value } }))}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">تعليمات التحويل</Label>
+                        <Textarea
+                          placeholder="تعليمات إضافية للطالب عند التحويل..."
+                          rows={3}
+                          value={paymentMethods.bank_transfer.instructions}
+                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, instructions: e.target.value } }))}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <Button onClick={saveSiteSettings} variant="hero" className="w-full" disabled={savingSettings}>
