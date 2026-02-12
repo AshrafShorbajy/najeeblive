@@ -50,10 +50,10 @@ export default function AdminDashboard() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<{
     paypal: { enabled: boolean; email: string };
-    bank_transfer: { enabled: boolean; account_number: string; bank_name: string; account_holder: string; iban: string; instructions: string };
+    bank_transfer: { enabled: boolean; account_number: string; account_holder: string; branch: string };
   }>({
     paypal: { enabled: true, email: "" },
-    bank_transfer: { enabled: true, account_number: "", bank_name: "", account_holder: "", iban: "", instructions: "" },
+    bank_transfer: { enabled: true, account_number: "", account_holder: "", branch: "" },
   });
 
   useEffect(() => {
@@ -725,11 +725,12 @@ export default function AdminDashboard() {
                   {paymentMethods.bank_transfer.enabled && (
                     <div className="space-y-2">
                       <div>
-                        <Label className="text-xs">اسم البنك</Label>
+                        <Label className="text-xs">رقم الحساب</Label>
                         <Input
-                          placeholder="مثال: بنك الراجحي"
-                          value={paymentMethods.bank_transfer.bank_name}
-                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, bank_name: e.target.value } }))}
+                          dir="ltr"
+                          placeholder="رقم الحساب البنكي"
+                          value={paymentMethods.bank_transfer.account_number}
+                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, account_number: e.target.value } }))}
                         />
                       </div>
                       <div>
@@ -741,30 +742,11 @@ export default function AdminDashboard() {
                         />
                       </div>
                       <div>
-                        <Label className="text-xs">رقم الحساب</Label>
+                        <Label className="text-xs">الفرع</Label>
                         <Input
-                          dir="ltr"
-                          placeholder="رقم الحساب البنكي"
-                          value={paymentMethods.bank_transfer.account_number}
-                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, account_number: e.target.value } }))}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">رقم الآيبان (IBAN)</Label>
-                        <Input
-                          dir="ltr"
-                          placeholder="SA..."
-                          value={paymentMethods.bank_transfer.iban}
-                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, iban: e.target.value } }))}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">تعليمات التحويل</Label>
-                        <Textarea
-                          placeholder="تعليمات إضافية للطالب عند التحويل..."
-                          rows={3}
-                          value={paymentMethods.bank_transfer.instructions}
-                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, instructions: e.target.value } }))}
+                          placeholder="اسم الفرع"
+                          value={paymentMethods.bank_transfer.branch}
+                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, branch: e.target.value } }))}
                         />
                       </div>
                     </div>
