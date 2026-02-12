@@ -21,12 +21,13 @@ export default function LessonDetailPage() {
   const [teacher, setTeacher] = useState<any>(null);
   const [bookings, setBookings] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<string>("paypal");
+  const [paymentMethod, setPaymentMethod] = useState<string>("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
   const [buyDialogOpen, setBuyDialogOpen] = useState(false);
   const [buying, setBuying] = useState(false);
+  const [paymentSettings, setPaymentSettings] = useState<any>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -46,6 +47,18 @@ export default function LessonDetailPage() {
       supabase.from("bookings").select("*").eq("lesson_id", id).eq("student_id", user.id)
         .then(({ data }) => setBookings(data ?? []));
     }
+
+    // Fetch payment settings
+    supabase.from("site_settings").select("value").eq("key", "payment_methods").single()
+      .then(({ data }) => {
+        if (data?.value) {
+          const ps = data.value as any;
+          setPaymentSettings(ps);
+          // Set default to first enabled method
+          if (ps.paypal?.enabled) setPaymentMethod("paypal");
+          else if (ps.bank_transfer?.enabled) setPaymentMethod("bank_transfer");
+        }
+      });
   }, [id, user]);
 
   const handleBuy = async () => {
@@ -195,19 +208,43 @@ export default function LessonDetailPage() {
                       <div className="space-y-4">
                         <p className="text-sm text-muted-foreground">المبلغ: <strong>{lesson.price} ر.س</strong></p>
                         <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
-                          <div className="flex items-center gap-2">
-                            <RadioGroupItem value="paypal" id="paypal" />
-                            <Label htmlFor="paypal">PayPal</Label>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <RadioGroupItem value="bank_transfer" id="bank" />
-                            <Label htmlFor="bank">تحويل بنكي</Label>
-                          </div>
+                          {paymentSettings?.paypal?.enabled && (
+                            <div className="flex items-center gap-2">
+                              <RadioGroupItem value="paypal" id="paypal" />
+                              <Label htmlFor="paypal">PayPal</Label>
+                            </div>
+                          )}
+                          {paymentSettings?.bank_transfer?.enabled && (
+                            <div className="flex items-center gap-2">
+                              <RadioGroupItem value="bank_transfer" id="bank" />
+                              <Label htmlFor="bank">تحويل بنكي</Label>
+                            </div>
+                          )}
                         </RadioGroup>
-                        {paymentMethod === "bank_transfer" && (
-                          <div>
-                            <Label>إرفاق صورة الإيصال</Label>
-                            <Input type="file" accept="image/*" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                        {paymentMethod === "paypal" && paymentSettings?.paypal?.email && (
+                          <div className="p-3 rounded-lg bg-muted text-sm space-y-1">
+                            <p className="font-medium">أرسل المبلغ إلى:</p>
+                            <p dir="ltr" className="text-primary font-mono">{paymentSettings.paypal.email}</p>
+                          </div>
+                        )}
+                        {paymentMethod === "bank_transfer" && paymentSettings?.bank_transfer && (
+                          <div className="space-y-3">
+                            <div className="p-3 rounded-lg bg-muted text-sm space-y-1">
+                              <p className="font-medium">بيانات التحويل:</p>
+                              {paymentSettings.bank_transfer.account_number && (
+                                <p>رقم الحساب: <span dir="ltr" className="font-mono">{paymentSettings.bank_transfer.account_number}</span></p>
+                              )}
+                              {paymentSettings.bank_transfer.account_holder && (
+                                <p>اسم صاحب الحساب: {paymentSettings.bank_transfer.account_holder}</p>
+                              )}
+                              {paymentSettings.bank_transfer.branch && (
+                                <p>الفرع: {paymentSettings.bank_transfer.branch}</p>
+                              )}
+                            </div>
+                            <div>
+                              <Label>إرفاق صورة الإيصال</Label>
+                              <Input type="file" accept="image/*" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                            </div>
                           </div>
                         )}
                         <Button onClick={handleBuy} disabled={buying} className="w-full" variant="hero">
