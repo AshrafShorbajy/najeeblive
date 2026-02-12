@@ -552,10 +552,10 @@ export default function TeacherDashboard() {
                       <p className="text-xs text-muted-foreground">الطالب: {b.student_name}</p>
                     </div>
                     <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-                      {b.status === "pending" ? "في الانتظار" : b.status === "scheduled" ? "مجدول" : b.status === "completed" ? "مكتمل" : b.status}
+                      {b.status === "accepted" ? "جديد - بانتظار القبول" : b.status === "scheduled" ? "مجدول" : b.status === "completed" ? "مكتمل" : b.status === "cancelled" ? "ملغي" : b.status}
                     </span>
                   </div>
-                  {b.status === "pending" && (
+                  {b.status === "accepted" && (
                     <Button size="sm" variant="hero" onClick={() => handleAcceptBooking(b.id)} className="w-full">
                       <CheckCircle className="h-4 w-4 ml-1" />
                       قبول وجدولة
