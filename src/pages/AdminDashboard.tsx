@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from "sonner";
 import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench, ImagePlus, Globe } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import TeachersManagement from "@/components/admin/TeachersManagement";
@@ -62,6 +64,7 @@ export default function AdminDashboard() {
   });
   const [activeCurrency, setActiveCurrency] = useState("USD");
   const [exchangeRate, setExchangeRate] = useState("1");
+  const [currencyPopoverOpen, setCurrencyPopoverOpen] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -818,18 +821,42 @@ export default function AdminDashboard() {
                 <div className="space-y-3">
                   <div>
                     <Label className="text-xs">العملة المعروضة</Label>
-                    <Select value={activeCurrency} onValueChange={setActiveCurrency}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        {ALL_CURRENCIES.map(c => (
-                          <SelectItem key={c.code} value={c.code}>
-                            {c.symbol} - {c.name} ({c.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={currencyPopoverOpen} onOpenChange={setCurrencyPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                          {(() => {
+                            const cur = ALL_CURRENCIES.find(c => c.code === activeCurrency);
+                            return cur ? `${cur.symbol} - ${cur.name} (${cur.code})` : "اختر العملة";
+                          })()}
+                          <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full min-w-[280px] p-0 z-50" align="start">
+                        <Command>
+                          <CommandInput placeholder="ابحث عن عملة..." className="text-right" dir="rtl" />
+                          <CommandList className="max-h-60">
+                            <CommandEmpty>لم يتم العثور على عملة</CommandEmpty>
+                            <CommandGroup>
+                              {ALL_CURRENCIES.map(c => (
+                                <CommandItem
+                                  key={c.code}
+                                  value={`${c.code} ${c.name} ${c.symbol}`}
+                                  onSelect={() => {
+                                    setActiveCurrency(c.code);
+                                    setCurrencyPopoverOpen(false);
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <span className={activeCurrency === c.code ? "font-bold text-primary" : ""}>
+                                    {c.symbol} - {c.name} ({c.code})
+                                  </span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   {activeCurrency !== "USD" && (
                     <div>
