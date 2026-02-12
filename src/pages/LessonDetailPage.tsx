@@ -229,7 +229,10 @@ export default function LessonDetailPage() {
                         )}
                         {paymentMethod === "bank_transfer" && paymentSettings?.bank_transfer && (
                           <div className="space-y-3">
-                            <div className="p-3 rounded-lg bg-muted text-sm space-y-1">
+                            <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
+                              {paymentSettings.bank_transfer.bank_logo_url && (
+                                <img src={paymentSettings.bank_transfer.bank_logo_url} alt="لوجو البنك" className="h-10 w-auto object-contain" />
+                              )}
                               <p className="font-medium">بيانات التحويل:</p>
                               {paymentSettings.bank_transfer.account_number && (
                                 <p>رقم الحساب: <span dir="ltr" className="font-mono">{paymentSettings.bank_transfer.account_number}</span></p>
