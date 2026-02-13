@@ -229,8 +229,8 @@ export default function SchedulePage() {
                     </Button>
                   </a>
                 )}
-                {/* Chat button for student on scheduled/completed bookings */}
-                {b.student_id === user?.id && (b.status === "scheduled" || b.status === "completed") && (
+                {/* Chat button for student on accepted/scheduled/completed bookings */}
+                {b.student_id === user?.id && (b.status === "accepted" || b.status === "scheduled" || b.status === "completed") && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -238,7 +238,7 @@ export default function SchedulePage() {
                     onClick={() => openChat(b)}
                   >
                     <MessageCircle className="h-4 w-4 ml-2" />
-                    {b.status === "scheduled" ? "مراسلة المعلم" : "عرض المحادثة"}
+                    {b.status === "completed" ? "عرض المحادثة" : "مراسلة المعلم"}
                   </Button>
                 )}
               </div>
