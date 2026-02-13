@@ -94,7 +94,23 @@ export default function InvoicesManagement() {
         .from("bookings")
         .update({ status: "accepted" as any })
         .eq("id", selectedInvoice.booking_id);
-      toast.success("تم اعتماد الفاتورة وإصدار الطلب للمعلم");
+
+      // Auto-create conversation for teacher and student to discuss scheduling
+      const { data: existingConv } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("booking_id", selectedInvoice.booking_id)
+        .maybeSingle();
+      
+      if (!existingConv) {
+        await supabase.from("conversations").insert({
+          student_id: selectedInvoice.student_id,
+          teacher_id: selectedInvoice.teacher_id,
+          booking_id: selectedInvoice.booking_id,
+        });
+      }
+
+      toast.success("تم اعتماد الفاتورة وإصدار الطلب للمعلم وفتح المحادثة");
       setSelectedInvoice(null);
       setAdminNotes("");
       fetchInvoices();

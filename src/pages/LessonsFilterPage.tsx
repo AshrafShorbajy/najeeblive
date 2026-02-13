@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Star, Heart } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 interface TeacherResult {
   id: string;
@@ -20,6 +21,16 @@ interface TeacherResult {
 export default function TutoringPage() {
   const { type } = useParams<{ type: string }>();
   const { format } = useCurrency();
+  const { user, loading: authLoading } = useAuthContext();
+  const navigate = useNavigate();
+
+  // Redirect unauthenticated users
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/auth");
+    }
+  }, [user, authLoading, navigate]);
+
   const [curricula, setCurricula] = useState<any[]>([]);
   const [gradeLevels, setGradeLevels] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -37,16 +48,16 @@ export default function TutoringPage() {
   const isSkills = type === "skills";
 
   const pageTitle = isTutoring ? "تقوية ومراجعة" : isBagReview ? "مراجعة الشنطة" : "مهارات ومواهب";
-
   const lessonType = isTutoring ? "tutoring" : isBagReview ? "bag_review" : "skills";
 
   useEffect(() => {
+    if (!user) return;
     if (isSkills) {
       supabase.from("skills_categories").select("*").then(({ data }) => setSkillCategories(data ?? []));
     } else {
       supabase.from("curricula").select("*").then(({ data }) => setCurricula(data ?? []));
     }
-  }, [isSkills]);
+  }, [isSkills, user]);
 
   useEffect(() => {
     if (selectedCurriculum) {
@@ -124,6 +135,12 @@ export default function TutoringPage() {
 
     if (hasFilter) fetchResults();
   }, [selectedCurriculum, selectedGrade, selectedSubject, selectedSkill, lessonType]);
+
+  if (authLoading) {
+    return <AppLayout><div className="p-8 text-center text-muted-foreground">جارٍ التحميل...</div></AppLayout>;
+  }
+
+  if (!user) return null;
 
   return (
     <AppLayout>

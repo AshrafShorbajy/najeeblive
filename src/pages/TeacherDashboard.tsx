@@ -53,6 +53,12 @@ export default function TeacherDashboard() {
   const teacherMsgEndRef = useRef<HTMLDivElement>(null);
   const [teacherUnreadCount, setTeacherUnreadCount] = useState(0);
 
+  // Badge counters - track which tabs have been viewed
+  const [activeTab, setActiveTab] = useState("lessons");
+  const [viewedTabs, setViewedTabs] = useState<Set<string>>(new Set(["lessons"]));
+  const [newBookingsCount, setNewBookingsCount] = useState(0);
+  const [pendingWithdrawalsCount, setPendingWithdrawalsCount] = useState(0);
+
   useEffect(() => {
     if (!user) return;
     supabase.from("profiles").select("*").eq("user_id", user.id).single().then(({ data }) => {
@@ -66,10 +72,19 @@ export default function TeacherDashboard() {
     supabase.from("curricula").select("*").then(({ data }) => setCurricula(data ?? []));
     supabase.from("skills_categories").select("*").then(({ data }) => setSkillCats(data ?? []));
     supabase.from("withdrawal_requests").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false })
-      .then(({ data }) => setWithdrawals(data ?? []));
+      .then(({ data }) => {
+        setWithdrawals(data ?? []);
+        setPendingWithdrawalsCount((data ?? []).filter(w => w.status === "pending").length);
+      });
     fetchTeacherConversations();
     fetchTeacherUnread();
   }, [user]);
+
+  // Mark tab as viewed when switching
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setViewedTabs(prev => new Set(prev).add(tab));
+  };
 
   const fetchTeacherUnread = async () => {
     if (!user) return;
@@ -115,7 +130,27 @@ export default function TeacherDashboard() {
       const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds);
       profiles?.forEach(p => { nameMap[p.user_id] = p.full_name; });
     }
-    setTeacherConversations(convs.map(c => ({ ...c, student_name: nameMap[c.student_id] || "طالب" })));
+
+    // Fetch unread counts per conversation
+    const convIds = convs.map(c => c.id);
+    let unreadMap: Record<string, number> = {};
+    if (convIds.length > 0) {
+      const { data: unreadMsgs } = await supabase
+        .from("messages")
+        .select("conversation_id")
+        .in("conversation_id", convIds)
+        .neq("sender_id", user.id)
+        .eq("is_read", false);
+      unreadMsgs?.forEach(m => {
+        unreadMap[m.conversation_id] = (unreadMap[m.conversation_id] ?? 0) + 1;
+      });
+    }
+
+    setTeacherConversations(convs.map(c => ({
+      ...c,
+      student_name: nameMap[c.student_id] || "طالب",
+      unread_count: unreadMap[c.id] ?? 0,
+    })));
   };
 
   const openTeacherChat = async (convId: string) => {
@@ -128,6 +163,8 @@ export default function TeacherDashboard() {
       if (unreadIds.length > 0) {
         await supabase.from("messages").update({ is_read: true }).in("id", unreadIds);
         fetchTeacherUnread();
+        // Update local unread count
+        setTeacherConversations(prev => prev.map(c => c.id === convId ? { ...c, unread_count: 0 } : c));
       }
     }
   };
@@ -195,10 +232,7 @@ export default function TeacherDashboard() {
       .in("status", ["accepted", "scheduled", "completed", "cancelled"])
       .order("created_at", { ascending: false });
     
-    console.log("Bookings fetch result:", { data, error, userId: user.id });
-    
     if (error) {
-      console.error("Bookings fetch error:", error);
       toast.error("خطأ في جلب الطلبات: " + error.message);
       return;
     }
@@ -218,6 +252,7 @@ export default function TeacherDashboard() {
       student_name: studentNames[b.student_id] || "غير معروف",
     }));
     setBookings(enriched);
+    setNewBookingsCount(enriched.filter(b => b.status === "accepted").length);
     const completed = enriched.filter((b) => b.status === "completed");
     setEarnings(completed.reduce((sum, b) => sum + Number(b.amount), 0));
   };
@@ -269,7 +304,6 @@ export default function TeacherDashboard() {
       subject_id: lesson.subject_id || "",
       skill_category_id: lesson.skill_category_id || "",
     });
-    // Load dependent dropdowns
     if (lesson.curriculum_id) {
       supabase.from("grade_levels").select("*").eq("curriculum_id", lesson.curriculum_id)
         .then(({ data }) => setGradeLevels(data ?? []));
@@ -316,7 +350,6 @@ export default function TeacherDashboard() {
     const booking = bookings.find((b) => b.id === scheduleBookingId);
     if (!booking) return;
 
-    // Call Zoom edge function to create meeting
     const { data: zoomData, error: zoomError } = await supabase.functions.invoke("create-zoom-meeting", {
       body: {
         topic: (booking as any).lessons?.title ?? "حصة",
@@ -354,7 +387,6 @@ export default function TeacherDashboard() {
       toast.error("المبلغ المطلوب أكبر من الرصيد القابل للسحب");
       return;
     }
-    // Convert back to USD for storage
     const amountInUsd = exchangeRate > 0 ? amountInDisplayCurrency / exchangeRate : amountInDisplayCurrency;
     const { error } = await supabase.from("withdrawal_requests").insert({
       teacher_id: user.id,
@@ -365,8 +397,18 @@ export default function TeacherDashboard() {
       setWithdrawAmount("");
       const { data } = await supabase.from("withdrawal_requests").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false });
       setWithdrawals(data ?? []);
+      setPendingWithdrawalsCount((data ?? []).filter(w => w.status === "pending").length);
       fetchAccountingRecords();
     }
+  };
+
+  const TabBadge = ({ count }: { count: number }) => {
+    if (count <= 0) return null;
+    return (
+      <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+        {count > 99 ? "99+" : count}
+      </span>
+    );
   };
 
   return (
@@ -374,18 +416,17 @@ export default function TeacherDashboard() {
       <div className="px-4 py-6">
         <h1 className="text-2xl font-bold mb-6">لوحة تحكم المعلم</h1>
 
-        <Tabs defaultValue="lessons">
+        <Tabs defaultValue="lessons" value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="w-full flex-wrap h-auto">
             <TabsTrigger value="profile" className="flex-1">المعلومات</TabsTrigger>
             <TabsTrigger value="lessons" className="flex-1">الحصص</TabsTrigger>
-            <TabsTrigger value="bookings" className="flex-1">الطلبات</TabsTrigger>
+            <TabsTrigger value="bookings" className="flex-1 relative">
+              الطلبات
+              {!viewedTabs.has("bookings") && <TabBadge count={newBookingsCount} />}
+            </TabsTrigger>
             <TabsTrigger value="messages" className="flex-1 relative">
               الرسائل
-              {teacherUnreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
-                  {teacherUnreadCount > 99 ? "99+" : teacherUnreadCount}
-                </span>
-              )}
+              {!viewedTabs.has("messages") && <TabBadge count={teacherUnreadCount} />}
             </TabsTrigger>
             <TabsTrigger value="earnings" className="flex-1">الأرباح</TabsTrigger>
           </TabsList>
@@ -630,7 +671,6 @@ export default function TeacherDashboard() {
                         if (error) {
                           toast.error("خطأ في تحديث الحالة");
                         } else {
-                          // Create accounting record with commission split
                           const totalAmount = Number(b.amount);
                           const platformShare = Math.round(totalAmount * commissionRate) / 100;
                           const teacherShare = totalAmount - platformShare;
@@ -712,11 +752,18 @@ export default function TeacherDashboard() {
                       className="w-full text-right bg-card rounded-xl p-4 border border-border hover:bg-muted/50 transition-colors"
                     >
                       <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {c.unread_count > 0 && (
+                            <span className="bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                              {c.unread_count > 99 ? "99+" : c.unread_count}
+                            </span>
+                          )}
+                          <MessageCircle className="h-5 w-5 text-muted-foreground" />
+                        </div>
                         <div>
                           <p className="font-semibold text-sm">{c.student_name}</p>
                           <p className="text-xs text-muted-foreground">{(c.bookings as any)?.lessons?.title ?? "حصة"}</p>
                         </div>
-                        <MessageCircle className="h-5 w-5 text-muted-foreground" />
                       </div>
                     </button>
                   ))
@@ -726,7 +773,6 @@ export default function TeacherDashboard() {
           </TabsContent>
 
           <TabsContent value="earnings" className="mt-4 space-y-4">
-            {/* Earnings Summary */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-card rounded-xl p-4 border border-border text-center">
                 <DollarSign className="h-6 w-6 mx-auto text-success mb-1" />
@@ -743,7 +789,6 @@ export default function TeacherDashboard() {
               نسبة عمولة المنصة: {commissionRate}% — يتم خصمها تلقائياً عند إتمام كل حصة
             </div>
 
-            {/* Recent Accounting Records */}
             {accountingRecords.length > 0 && (
               <div className="bg-card rounded-xl p-4 border border-border space-y-3">
                 <h3 className="font-semibold text-sm">سجل الأرباح</h3>

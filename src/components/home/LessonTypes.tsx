@@ -1,6 +1,8 @@
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { BookOpen, Backpack, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const types = [
   {
@@ -30,6 +32,18 @@ const types = [
 ];
 
 export function LessonTypes() {
+  const { user } = useAuthContext();
+  const navigate = useNavigate();
+
+  const handleClick = (path: string) => {
+    if (!user) {
+      toast.info("يجب تسجيل الدخول أولاً للوصول إلى الدروس");
+      navigate("/auth");
+      return;
+    }
+    navigate(path);
+  };
+
   return (
     <section className="px-4 mt-8">
       <h2 className="text-lg font-bold mb-4">أنواع الدروس</h2>
@@ -41,14 +55,14 @@ export function LessonTypes() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
           >
-            <Link
-              to={type.path}
-              className={`block ${type.gradient} rounded-xl p-6 text-foreground hover:scale-[1.02] transition-transform shadow-elevated`}
+            <button
+              onClick={() => handleClick(type.path)}
+              className={`block w-full text-right ${type.gradient} rounded-xl p-6 text-foreground hover:scale-[1.02] transition-transform shadow-elevated`}
             >
               <type.icon className="h-8 w-8 mb-3" />
               <h3 className="font-bold text-lg">{type.title}</h3>
               <p className="text-sm text-foreground/70 mt-1">{type.description}</p>
-            </Link>
+            </button>
           </motion.div>
         ))}
       </div>
