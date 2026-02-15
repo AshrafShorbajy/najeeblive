@@ -273,7 +273,13 @@ export default function LessonDetailPage() {
                           {paymentSettings?.paypal?.enabled && (
                             <div className="flex items-center gap-2">
                               <RadioGroupItem value="paypal" id="paypal" />
-                              <Label htmlFor="paypal">PayPal</Label>
+                              <Label htmlFor="paypal" className="flex items-center gap-2">
+                                البطاقة الإئتمانية
+                                <div className="flex items-center gap-1">
+                                  <img src="https://cdn-icons-png.flaticon.com/32/349/349221.png" alt="Visa" className="h-5" />
+                                  <img src="https://cdn-icons-png.flaticon.com/32/349/349228.png" alt="Mastercard" className="h-5" />
+                                </div>
+                              </Label>
                             </div>
                           )}
                           {paymentSettings?.bank_transfer?.enabled && (
@@ -296,7 +302,8 @@ export default function LessonDetailPage() {
                               }}
                             >
                               <PayPalButtons
-                                style={{ layout: "vertical", shape: "rect", label: "pay" }}
+                                fundingSource="card"
+                                style={{ layout: "vertical", shape: "rect", label: "pay", color: "black" }}
                                 disabled={buying}
                                 createOrder={(_data: any, actions: any) => {
                                   return actions.order.create({
