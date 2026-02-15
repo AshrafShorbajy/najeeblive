@@ -9,11 +9,26 @@ import { supabase } from "@/integrations/supabase/client";
 export function Header() {
   const { user, isAdmin, isTeacher, isSupervisor } = useAuthContext();
   const [siteLogo, setSiteLogo] = useState("");
+  const [siteName, setSiteName] = useState("منصة تعليم");
 
   useEffect(() => {
-    supabase.from("site_settings").select("value").eq("key", "site_logo").single()
+    supabase.from("site_settings").select("key, value").in("key", ["site_logo", "site_name", "site_favicon"])
       .then(({ data }) => {
-        if (data && typeof data.value === "string" && data.value) setSiteLogo(data.value);
+        if (data) {
+          for (const s of data) {
+            if (s.key === "site_logo" && typeof s.value === "string" && s.value) setSiteLogo(s.value);
+            if (s.key === "site_name" && typeof s.value === "string" && s.value) {
+              setSiteName(s.value);
+              document.title = s.value;
+            }
+            if (s.key === "site_favicon" && typeof s.value === "string" && s.value) {
+              const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement || document.createElement("link");
+              link.rel = "icon";
+              link.href = s.value;
+              document.head.appendChild(link);
+            }
+          }
+        }
       });
   }, []);
 
@@ -26,7 +41,7 @@ export function Header() {
           {siteLogo ? (
             <img src={siteLogo} alt="لوجو الموقع" className="h-8 object-contain" />
           ) : (
-            <span className="text-xl font-bold text-primary">منصة تعليم</span>
+            <span className="text-xl font-bold text-primary">{siteName}</span>
           )}
         </Link>
         <div className="flex items-center gap-2">
