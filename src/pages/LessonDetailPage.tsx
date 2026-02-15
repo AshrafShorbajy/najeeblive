@@ -13,116 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import React from "react";
-function PayPalDirectButtons({ clientId, lesson, buying, onSuccess }: {
-  clientId: string;
-  lesson: any;
-  buying: boolean;
-  onSuccess: (orderData: any) => Promise<void>;
-}) {
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  const [status, setStatus] = React.useState<"loading" | "ready" | "error">("loading");
-  const [errorMsg, setErrorMsg] = React.useState("");
-
-  React.useEffect(() => {
-    if (!clientId || !containerRef.current) return;
-
-    // Check if script already loaded
-    const existingScript = document.querySelector(`script[src*="paypal.com/sdk/js"]`);
-    if (existingScript) {
-      existingScript.remove();
-      // Clear PayPal global
-      (window as any).paypal = undefined;
-    }
-
-    const script = document.createElement("script");
-    script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=USD&intent=capture&components=buttons`;
-    script.async = true;
-
-    script.onload = () => {
-      try {
-        const paypal = (window as any).paypal;
-        if (!paypal?.Buttons) {
-          setStatus("error");
-          setErrorMsg("PayPal SDK loaded but Buttons component unavailable. Client ID may be invalid.");
-          return;
-        }
-
-        if (!containerRef.current) return;
-        containerRef.current.innerHTML = "";
-
-        paypal.Buttons({
-          style: { layout: "vertical", shape: "rect", label: "pay" },
-          createOrder: (_data: any, actions: any) => {
-            return actions.order.create({
-              intent: "CAPTURE",
-              purchase_units: [{
-                amount: { value: String(lesson.price), currency_code: "USD" },
-                description: lesson.title,
-              }],
-            });
-          },
-          onApprove: async (_data: any, actions: any) => {
-            try {
-              const order = await actions.order?.capture();
-              if (order?.status === "COMPLETED") {
-                await onSuccess(order);
-              } else {
-                toast.error("لم يتم إكمال الدفع");
-              }
-            } catch (err) {
-              console.error("PayPal approve error:", err);
-              toast.error("حدث خطأ أثناء معالجة الدفع");
-            }
-          },
-          onError: (err: any) => {
-            console.error("PayPal button error:", err);
-            setStatus("error");
-            setErrorMsg(String(err?.message || err));
-          },
-        }).render(containerRef.current).then(() => {
-          setStatus("ready");
-        }).catch((err: any) => {
-          console.error("PayPal render error:", err);
-          setStatus("error");
-          setErrorMsg(String(err?.message || err));
-        });
-      } catch (err: any) {
-        console.error("PayPal init error:", err);
-        setStatus("error");
-        setErrorMsg(String(err?.message || err));
-      }
-    };
-
-    script.onerror = (e) => {
-      console.error("PayPal script load error:", e);
-      setStatus("error");
-      setErrorMsg("فشل تحميل PayPal SDK - تحقق من اتصال الإنترنت أو صحة Client ID");
-    };
-
-    document.body.appendChild(script);
-
-    return () => {
-      // Cleanup
-      try { script.remove(); } catch {}
-    };
-  }, [clientId, lesson.price, lesson.title]);
-
-  return (
-    <div>
-      {status === "loading" && (
-        <div className="p-3 text-center text-sm text-muted-foreground">جارٍ تحميل PayPal...</div>
-      )}
-      {status === "error" && (
-        <div className="p-3 rounded-lg bg-destructive/10 text-sm text-destructive text-center space-y-1">
-          <p>خطأ في تحميل PayPal</p>
-          <p className="text-[10px] opacity-70" dir="ltr">{errorMsg}</p>
-        </div>
-      )}
-      <div ref={containerRef} className={status === "loading" ? "hidden" : ""} />
-    </div>
-  );
-}
+import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 export default function LessonDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -394,13 +285,46 @@ export default function LessonDetailPage() {
                         </RadioGroup>
                         {paymentMethod === "paypal" && paymentSettings?.paypal?.client_id && (
                           <div className="space-y-3">
-                            <PayPalDirectButtons
-                              clientId={paymentSettings.paypal.client_id}
-                              lesson={lesson}
-                              buying={buying}
-                              onSuccess={handlePayPalSuccess}
+                            <PayPalScriptProvider
                               key={`paypal-${paymentSettings.paypal.sandbox ? "sandbox" : "live"}-${paymentSettings.paypal.client_id.slice(-6)}`}
-                            />
+                              options={{
+                                clientId: paymentSettings.paypal.client_id,
+                                currency: "USD",
+                                intent: "capture",
+                                components: "buttons",
+                              }}
+                            >
+                              <PayPalButtons
+                                style={{ layout: "vertical", shape: "rect", label: "pay" }}
+                                disabled={buying}
+                                createOrder={(_data: any, actions: any) => {
+                                  return actions.order.create({
+                                    intent: "CAPTURE",
+                                    purchase_units: [{
+                                      amount: { value: String(lesson.price), currency_code: "USD" },
+                                      description: lesson.title,
+                                    }],
+                                  });
+                                }}
+                                onApprove={async (_data: any, actions: any) => {
+                                  try {
+                                    const order = await actions.order?.capture();
+                                    if (order?.status === "COMPLETED") {
+                                      await handlePayPalSuccess(order);
+                                    } else {
+                                      toast.error("لم يتم إكمال الدفع");
+                                    }
+                                  } catch (err) {
+                                    console.error("PayPal approve error:", err);
+                                    toast.error("حدث خطأ أثناء معالجة الدفع");
+                                  }
+                                }}
+                                onError={(err: any) => {
+                                  console.error("PayPal button error:", err);
+                                  toast.error("حدث خطأ في PayPal");
+                                }}
+                              />
+                            </PayPalScriptProvider>
                             {paymentSettings.paypal.sandbox && (
                               <p className="text-[10px] text-center text-warning bg-warning/10 rounded p-1">⚠️ وضع الاختبار (Sandbox)</p>
                             )}
