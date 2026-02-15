@@ -818,14 +818,21 @@ export default function TeacherDashboard() {
             <div className="space-y-2">
               <h3 className="font-semibold">طلبات السحب السابقة</h3>
               {withdrawals.map((w) => (
-                <div key={w.id} className="p-3 rounded-lg border border-border flex justify-between items-center">
-                  <div>
-                    <span className="font-medium">{format(w.amount)}</span>
-                    <p className="text-xs text-muted-foreground">{new Date(w.created_at).toLocaleDateString("ar", { year: "numeric", month: "long", day: "numeric" })}</p>
+                <div key={w.id} className="p-3 rounded-lg border border-border space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="font-medium">{format(w.amount)}</span>
+                      <p className="text-xs text-muted-foreground">{new Date(w.created_at).toLocaleDateString("ar", { year: "numeric", month: "long", day: "numeric" })}</p>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full ${w.status === "approved" ? "bg-success/10 text-success" : w.status === "rejected" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
+                      {w.status === "pending" ? "قيد المراجعة" : w.status === "approved" ? "مقبول" : "مرفوض"}
+                    </span>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${w.status === "approved" ? "bg-success/10 text-success" : w.status === "rejected" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
-                    {w.status === "pending" ? "قيد المراجعة" : w.status === "approved" ? "مقبول" : "مرفوض"}
-                  </span>
+                  {w.status === "approved" && (w as any).receipt_url && (
+                    <a href={(w as any).receipt_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline flex items-center gap-1">
+                      عرض إيصال التحويل
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
