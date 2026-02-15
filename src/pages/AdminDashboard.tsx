@@ -264,6 +264,9 @@ export default function AdminDashboard() {
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
 
   const handleWithdrawalAction = async (id: string, status: string) => {
+    // Find the withdrawal to get teacher_id
+    const withdrawal = withdrawals.find(w => w.id === id);
+    
     if (status === "approved") {
       if (!withdrawalReceiptFile) {
         toast.error("يجب إرفاق إيصال التحويل قبل القبول");
@@ -282,6 +285,30 @@ export default function AdminDashboard() {
       await supabase.from("withdrawal_requests").update({ status, receipt_url: urlData.publicUrl } as any).eq("id", id);
       setWithdrawalReceiptFile(null);
       setUploadingReceipt(false);
+
+      // Send notification to teacher
+      if (withdrawal?.teacher_id) {
+        await supabase.from("notifications").insert({
+          user_id: withdrawal.teacher_id,
+          type: "withdrawal",
+          title: "تم قبول طلب السحب",
+          body: `تمت الموافقة على طلب السحب الخاص بك وتم تحويل المبلغ، يمكنك عرض إيصال التحويل`,
+          metadata: { withdrawal_id: id },
+        } as any);
+      }
+    } else if (status === "rejected") {
+      await supabase.from("withdrawal_requests").update({ status } as any).eq("id", id);
+
+      // Notify teacher about rejection
+      if (withdrawal?.teacher_id) {
+        await supabase.from("notifications").insert({
+          user_id: withdrawal.teacher_id,
+          type: "withdrawal",
+          title: "تم رفض طلب السحب",
+          body: "تم رفض طلب السحب الخاص بك من قبل الإدارة",
+          metadata: { withdrawal_id: id },
+        } as any);
+      }
     } else {
       await supabase.from("withdrawal_requests").update({ status } as any).eq("id", id);
     }
