@@ -93,12 +93,16 @@ export default function InvoicesManagement() {
     if (error) {
       toast.error("فشل تحديث الفاتورة");
     } else {
+      // Check if this is a group lesson - if so, set to "scheduled" directly
+      const lesson = lessonsMap[selectedInvoice.lesson_id];
+      const newStatus = lesson?.lesson_type === "group" ? "scheduled" : "accepted";
+
       await supabase
         .from("bookings")
-        .update({ status: "accepted" as any })
+        .update({ status: newStatus as any })
         .eq("id", selectedInvoice.booking_id);
 
-      // Auto-create conversation for teacher and student to discuss scheduling
+      // Auto-create conversation for teacher and student
       const { data: existingConv } = await supabase
         .from("conversations")
         .select("id")
@@ -113,7 +117,10 @@ export default function InvoicesManagement() {
         });
       }
 
-      toast.success("تم اعتماد الفاتورة وإصدار الطلب للمعلم وفتح المحادثة");
+      const msg = lesson?.lesson_type === "group"
+        ? "تم اعتماد الفاتورة وتسجيل الطالب في الكورس الجماعي"
+        : "تم اعتماد الفاتورة وإصدار الطلب للمعلم وفتح المحادثة";
+      toast.success(msg);
       setSelectedInvoice(null);
       setAdminNotes("");
       fetchInvoices();

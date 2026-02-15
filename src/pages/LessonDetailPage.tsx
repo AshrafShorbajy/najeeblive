@@ -95,14 +95,17 @@ export default function LessonDetailPage() {
     if (!user || !lesson) return;
     setBuying(true);
 
-    // Create booking as accepted directly (no admin approval needed)
+    // Group lessons go directly to "scheduled" since dates are pre-set
+    const bookingStatus = lesson.lesson_type === "group" ? "scheduled" : "accepted";
+
+    // Create booking
     const { data: bookingData, error } = await supabase.from("bookings").insert({
       student_id: user.id,
       lesson_id: lesson.id,
       teacher_id: lesson.teacher_id,
       amount: lesson.price,
       payment_method: "paypal" as any,
-      status: "accepted",
+      status: bookingStatus,
     }).select().single();
 
     if (error || !bookingData) {
@@ -129,10 +132,19 @@ export default function LessonDetailPage() {
       booking_id: bookingData.id,
     });
 
-    toast.success("تم الدفع بنجاح! يمكنك الآن التواصل مع المعلم لتحديد موعد الحصة");
+    const successMsg = lesson.lesson_type === "group"
+      ? "تم الدفع بنجاح! تم تسجيلك في الكورس الجماعي"
+      : "تم الدفع بنجاح! يمكنك الآن التواصل مع المعلم لتحديد موعد الحصة";
+    toast.success(successMsg);
     setBuyDialogOpen(false);
     const { data } = await supabase.from("bookings").select("*").eq("lesson_id", id).eq("student_id", user.id);
     setBookings(data ?? []);
+    if (lesson.lesson_type === "group") {
+      // Refresh enrolled count
+      supabase.from("bookings").select("id", { count: "exact", head: true })
+        .eq("lesson_id", id).in("status", ["pending", "accepted", "scheduled"])
+        .then(({ count }) => setEnrolledCount(count ?? 0));
+    }
     setBuying(false);
   };
 

@@ -10,8 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Edit, DollarSign, Calendar, CheckCircle, XCircle, MessageCircle, Send, ArrowRight } from "lucide-react";
+import { Plus, Edit, DollarSign, Calendar, CheckCircle, XCircle, MessageCircle, Send, ArrowRight, Users } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import GroupCoursesTab from "@/components/teacher/GroupCoursesTab";
 
 export default function TeacherDashboard() {
   const { user } = useAuthContext();
@@ -467,6 +468,7 @@ export default function TeacherDashboard() {
           <TabsList className="w-full flex-wrap h-auto">
             <TabsTrigger value="profile" className="flex-1">المعلومات</TabsTrigger>
             <TabsTrigger value="lessons" className="flex-1">الحصص</TabsTrigger>
+            <TabsTrigger value="courses" className="flex-1">الكورسات</TabsTrigger>
             <TabsTrigger value="bookings" className="flex-1 relative overflow-visible">
               الطلبات
               {!viewedTabs.has("bookings") && newBookingsCount > 0 && <TabBadge count={newBookingsCount} />}
@@ -529,12 +531,11 @@ export default function TeacherDashboard() {
                       <SelectContent>
                         <SelectItem value="tutoring">تقوية ومراجعة</SelectItem>
                         <SelectItem value="bag_review">مراجعة الشنطة</SelectItem>
-                        <SelectItem value="group">دروس جماعية</SelectItem>
                         <SelectItem value="skills">مهارات ومواهب</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  {(newLesson.lesson_type === "tutoring" || newLesson.lesson_type === "bag_review" || newLesson.lesson_type === "group") && (
+                  {(newLesson.lesson_type === "tutoring" || newLesson.lesson_type === "bag_review") && (
                     <>
                       <div><Label>المنهج</Label>
                         <Select value={newLesson.curriculum_id} onValueChange={(v) => setNewLesson({ ...newLesson, curriculum_id: v, grade_level_id: "", subject_id: "" })}>
@@ -548,7 +549,7 @@ export default function TeacherDashboard() {
                           <SelectContent>{gradeLevels.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                      {(newLesson.lesson_type === "tutoring" || newLesson.lesson_type === "group") && (
+                      {newLesson.lesson_type === "tutoring" && (
                         <div><Label>المادة</Label>
                           <Select value={newLesson.subject_id} onValueChange={(v) => setNewLesson({ ...newLesson, subject_id: v })}>
                             <SelectTrigger><SelectValue placeholder="اختر المادة" /></SelectTrigger>
@@ -571,73 +572,13 @@ export default function TeacherDashboard() {
                     <div><Label>السعر ($)</Label><Input type="number" value={newLesson.price} onChange={(e) => setNewLesson({ ...newLesson, price: parseFloat(e.target.value) || 0 })} /></div>
                   </div>
                   <div><Label>ملاحظات</Label><Textarea value={newLesson.notes} onChange={(e) => setNewLesson({ ...newLesson, notes: e.target.value })} /></div>
-                  
-                  {/* Group lesson specific fields */}
-                  {newLesson.lesson_type === "group" && (
-                    <div className="border border-primary/20 rounded-lg p-3 space-y-3 bg-primary/5">
-                      <h4 className="font-semibold text-sm text-primary">إعدادات الكورس الجماعي</h4>
-                      <div><Label>عدد الطلاب المتوقع</Label>
-                        <Select value={String(newLesson.expected_students)} onValueChange={(v) => setNewLesson({ ...newLesson, expected_students: parseInt(v) })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="3">3 طلاب</SelectItem>
-                            <SelectItem value="7">7 طلاب</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div><Label>نوع الكورس</Label>
-                        <Select value={newLesson.course_topic_type} onValueChange={(v) => setNewLesson({ ...newLesson, course_topic_type: v })}>
-                          <SelectTrigger><SelectValue placeholder="اختر نوع الكورس" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="موضوع محدد">موضوع محدد في المنهج</SelectItem>
-                            <SelectItem value="المنهج كامل">المنهج كامل</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div><Label>موعد بداية الكورس</Label>
-                        <Input type="datetime-local" value={newLesson.course_start_date} onChange={(e) => setNewLesson({ ...newLesson, course_start_date: e.target.value })} dir="ltr" />
-                      </div>
-                      <div><Label>عدد الحصص المقررة (5 كحد أدنى)</Label>
-                        <Input type="number" min={5} value={newLesson.total_sessions} onChange={(e) => {
-                          const val = Math.max(5, parseInt(e.target.value) || 5);
-                          const dates = [...newLesson.session_dates];
-                          while (dates.length < val) dates.push("");
-                          setNewLesson({ ...newLesson, total_sessions: val, session_dates: dates.slice(0, val) });
-                        }} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>مواعيد الحصص (أدخل 5 مواعيد على الأقل)</Label>
-                        <div className="max-h-48 overflow-y-auto space-y-2">
-                          {Array.from({ length: newLesson.total_sessions }).map((_, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground min-w-[50px]">حصة {i + 1}</span>
-                              <Input
-                                type="datetime-local"
-                                dir="ltr"
-                                value={newLesson.session_dates[i] || ""}
-                                onChange={(e) => {
-                                  const dates = [...newLesson.session_dates];
-                                  while (dates.length <= i) dates.push("");
-                                  dates[i] = e.target.value;
-                                  setNewLesson({ ...newLesson, session_dates: dates });
-                                }}
-                                className="text-xs"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                        <p className="text-[10px] text-muted-foreground">* يمكنك إضافة بقية المواعيد لاحقاً بعد بدء الكورس</p>
-                      </div>
-                    </div>
-                  )}
-
                   <Button onClick={handleAddLesson} variant="hero" className="w-full">إضافة الحصة</Button>
                 </div>
               </DialogContent>
             </Dialog>
 
             <div className="space-y-3">
-              {lessons.map((l) => (
+              {lessons.filter(l => l.lesson_type !== "group").map((l) => (
                 <div key={l.id} className="bg-card rounded-xl p-4 border border-border">
                     <div className="flex justify-between items-start">
                       <div>
@@ -670,12 +611,11 @@ export default function TeacherDashboard() {
                         <SelectContent>
                           <SelectItem value="tutoring">تقوية ومراجعة</SelectItem>
                           <SelectItem value="bag_review">مراجعة الشنطة</SelectItem>
-                          <SelectItem value="group">دروس جماعية</SelectItem>
                           <SelectItem value="skills">مهارات ومواهب</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    {(editLesson.lesson_type === "tutoring" || editLesson.lesson_type === "bag_review" || editLesson.lesson_type === "group") && (
+                    {(editLesson.lesson_type === "tutoring" || editLesson.lesson_type === "bag_review") && (
                       <>
                         <div><Label>المنهج</Label>
                           <Select value={editLesson.curriculum_id} onValueChange={(v) => {
@@ -695,7 +635,7 @@ export default function TeacherDashboard() {
                             <SelectContent>{gradeLevels.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}</SelectContent>
                           </Select>
                         </div>
-                        {(editLesson.lesson_type === "tutoring" || editLesson.lesson_type === "group") && (
+                        {editLesson.lesson_type === "tutoring" && (
                           <div><Label>المادة</Label>
                             <Select value={editLesson.subject_id} onValueChange={(v) => setEditLesson({ ...editLesson, subject_id: v })}>
                               <SelectTrigger><SelectValue placeholder="اختر المادة" /></SelectTrigger>
@@ -729,6 +669,11 @@ export default function TeacherDashboard() {
             </Dialog>
           </TabsContent>
 
+          {/* Group Courses Tab */}
+          <TabsContent value="courses" className="mt-4">
+            {user && <GroupCoursesTab userId={user.id} onCoursesChange={fetchLessons} />}
+          </TabsContent>
+
           <TabsContent value="bookings" className="mt-4 space-y-3">
             {bookings.length === 0 ? (
               <p className="text-center text-muted-foreground py-12">لا توجد طلبات حتى الآن</p>
@@ -744,11 +689,17 @@ export default function TeacherDashboard() {
                       {b.status === "accepted" ? "جديد - بانتظار القبول" : b.status === "scheduled" ? "مجدول" : b.status === "completed" ? "مكتمل" : b.status === "cancelled" ? "ملغي" : b.status}
                     </span>
                   </div>
-                  {b.status === "accepted" && (
+                  {b.status === "accepted" && (b as any).lessons?.lesson_type !== "group" && (
                     <Button size="sm" variant="hero" onClick={() => handleAcceptBooking(b.id)} className="w-full">
                       <CheckCircle className="h-4 w-4 ml-1" />
                       قبول وجدولة
                     </Button>
+                  )}
+                  {b.status === "accepted" && (b as any).lessons?.lesson_type === "group" && (
+                    <div className="bg-primary/5 rounded-lg p-2 text-xs text-primary text-center mt-2">
+                      <Users className="h-3 w-3 inline ml-1" />
+                      كورس جماعي - الجدولة مسبقة، لا حاجة للقبول اليدوي
+                    </div>
                   )}
                   {scheduleBookingId === b.id && (
                     <div className="mt-3 space-y-2">
