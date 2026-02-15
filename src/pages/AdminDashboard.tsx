@@ -790,29 +790,39 @@ export default function AdminDashboard() {
 
           {isAdmin && (
             <TabsContent value="site-settings" className="mt-4 space-y-4">
-              {/* Sub-tab navigation */}
-              <div className="flex flex-wrap gap-2 bg-muted p-2 rounded-lg">
-                <Button variant={settingsSubTab === "design" ? "default" : "ghost"} size="sm" onClick={() => setSettingsSubTab("design")}>
-                  <Palette className="h-4 w-4 ml-1" />
-                  التصميم
-                </Button>
-                <Button variant={settingsSubTab === "payment" ? "default" : "ghost"} size="sm" onClick={() => setSettingsSubTab("payment")}>
-                  <CreditCard className="h-4 w-4 ml-1" />
-                  طرق الدفع
-                </Button>
-                <Button variant={settingsSubTab === "currency" ? "default" : "ghost"} size="sm" onClick={() => setSettingsSubTab("currency")}>
-                  <Globe className="h-4 w-4 ml-1" />
-                  عملة الموقع
-                </Button>
-                <Button variant={settingsSubTab === "commission" ? "default" : "ghost"} size="sm" onClick={() => setSettingsSubTab("commission")}>
-                  <Percent className="h-4 w-4 ml-1" />
-                  نسبة العمولة
-                </Button>
-                <Button variant={settingsSubTab === "maintenance" ? "default" : "ghost"} size="sm" onClick={() => setSettingsSubTab("maintenance")}>
-                  <ShieldOff className="h-4 w-4 ml-1" />
-                  إغلاق الموقع
-                </Button>
-              </div>
+              {/* Sub-tab dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1 w-full justify-between">
+                    <span className="flex items-center gap-1">
+                      <Settings className="h-4 w-4" />
+                      {settingsSubTab === "design" && "التصميم"}
+                      {settingsSubTab === "payment" && "طرق الدفع"}
+                      {settingsSubTab === "currency" && "عملة الموقع"}
+                      {settingsSubTab === "commission" && "نسبة العمولة"}
+                      {settingsSubTab === "maintenance" && "إغلاق الموقع"}
+                    </span>
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[180px]">
+                  <DropdownMenuItem onClick={() => setSettingsSubTab("design")}>
+                    <Palette className="h-4 w-4 ml-1" /> التصميم
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSettingsSubTab("payment")}>
+                    <CreditCard className="h-4 w-4 ml-1" /> طرق الدفع
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSettingsSubTab("currency")}>
+                    <Globe className="h-4 w-4 ml-1" /> عملة الموقع
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSettingsSubTab("commission")}>
+                    <Percent className="h-4 w-4 ml-1" /> نسبة العمولة
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSettingsSubTab("maintenance")}>
+                    <ShieldOff className="h-4 w-4 ml-1" /> إغلاق الموقع
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* التصميم */}
               {settingsSubTab === "design" && (
