@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useNavigate } from "react-router-dom";
 import {
   Popover,
   PopoverContent,
@@ -17,6 +18,18 @@ interface Notification {
   body: string | null;
   is_read: boolean;
   created_at: string;
+  metadata: Record<string, any> | null;
+}
+
+function getNotificationRoute(notif: Notification): string {
+  const meta = notif.metadata || {};
+  if (notif.type === "message" && meta.conversation_id) {
+    return `/messages?conversation=${meta.conversation_id}`;
+  }
+  if (notif.type === "booking") {
+    return "/schedule";
+  }
+  return "/";
 }
 
 export function NotificationBell() {
@@ -24,7 +37,7 @@ export function NotificationBell() {
   const { permission, isSubscribed, subscribe } = usePushNotifications();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
-  const hasPlayedRef = useRef(false);
+  const navigate = useNavigate();
 
   const playSound = useCallback(() => {
     try {
@@ -95,16 +108,29 @@ export function NotificationBell() {
 
   const markAllRead = async () => {
     if (!user) return;
-    const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
-    if (unreadIds.length === 0) return;
-
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-
     await supabase
       .from("notifications")
       .update({ is_read: true })
       .eq("user_id", user.id)
       .eq("is_read", false);
+  };
+
+  const handleNotificationClick = async (notif: Notification) => {
+    // Mark as read
+    if (!notif.is_read) {
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
+      );
+      await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("id", notif.id);
+    }
+
+    setOpen(false);
+    const route = getNotificationRoute(notif);
+    navigate(route);
   };
 
   if (!user) return null;
@@ -148,9 +174,10 @@ export function NotificationBell() {
             </p>
           ) : (
             notifications.map((n) => (
-              <div
+              <button
                 key={n.id}
-                className={`p-3 border-b border-border last:border-0 ${
+                onClick={() => handleNotificationClick(n)}
+                className={`w-full text-start p-3 border-b border-border last:border-0 hover:bg-muted/50 transition-colors ${
                   !n.is_read ? "bg-primary/5" : ""
                 }`}
               >
@@ -170,7 +197,7 @@ export function NotificationBell() {
                     </p>
                   </div>
                 </div>
-              </div>
+              </button>
             ))
           )}
         </div>
