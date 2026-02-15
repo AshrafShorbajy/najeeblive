@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LogOut } from "lucide-react";
 
 const faqs = [
@@ -18,12 +19,17 @@ const faqs = [
 ];
 
 export default function ProfilePage() {
-  const { user, signOut } = useAuthContext();
+  const { user, isStudent, signOut } = useAuthContext();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const [curricula, setCurricula] = useState<any[]>([]);
+  const [gradeLevels, setGradeLevels] = useState<any[]>([]);
+  const [selectedCurriculum, setSelectedCurriculum] = useState("");
+  const [selectedGrade, setSelectedGrade] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -32,13 +38,35 @@ export default function ProfilePage() {
         setProfile(data);
         setFullName(data?.full_name ?? "");
         setPhone(data?.phone ?? "");
+        setSelectedCurriculum((data as any)?.curriculum_id ?? "");
+        setSelectedGrade((data as any)?.grade_level_id ?? "");
       });
   }, [user]);
+
+  useEffect(() => {
+    if (isStudent) {
+      supabase.from("curricula").select("*").then(({ data }) => setCurricula(data ?? []));
+    }
+  }, [isStudent]);
+
+  useEffect(() => {
+    if (selectedCurriculum) {
+      supabase.from("grade_levels").select("*").eq("curriculum_id", selectedCurriculum)
+        .then(({ data }) => setGradeLevels(data ?? []));
+    } else {
+      setGradeLevels([]);
+    }
+  }, [selectedCurriculum]);
 
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
-    const { error } = await supabase.from("profiles").update({ full_name: fullName, phone }).eq("user_id", user.id);
+    const updateData: any = { full_name: fullName, phone };
+    if (isStudent) {
+      updateData.curriculum_id = selectedCurriculum || null;
+      updateData.grade_level_id = selectedGrade || null;
+    }
+    const { error } = await supabase.from("profiles").update(updateData).eq("user_id", user.id);
     if (error) toast.error("حدث خطأ"); else toast.success("تم الحفظ");
     setSaving(false);
   };
@@ -78,6 +106,35 @@ export default function ProfilePage() {
             {saving ? "جارٍ الحفظ..." : "حفظ التعديلات"}
           </Button>
         </div>
+
+        {isStudent && (
+          <div className="bg-card rounded-xl p-4 border border-border space-y-4 mb-6">
+            <h2 className="font-bold">المعلومات الدراسية</h2>
+            <div className="space-y-2">
+              <Label>المنهج الدراسي</Label>
+              <Select value={selectedCurriculum} onValueChange={(v) => { setSelectedCurriculum(v); setSelectedGrade(""); }}>
+                <SelectTrigger><SelectValue placeholder="اختر المنهج" /></SelectTrigger>
+                <SelectContent>
+                  {curricula.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>المرحلة الدراسية</Label>
+              <Select value={selectedGrade} onValueChange={setSelectedGrade} disabled={!selectedCurriculum}>
+                <SelectTrigger><SelectValue placeholder="اختر المرحلة" /></SelectTrigger>
+                <SelectContent>
+                  {gradeLevels.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">سيتم استخدام هذه المعلومات لتجهيز فلاتر البحث تلقائياً عند تصفح الدروس</p>
+          </div>
+        )}
 
         <div className="bg-card rounded-xl p-4 border border-border mb-6">
           <h2 className="font-bold mb-3">الأسئلة الشائعة</h2>

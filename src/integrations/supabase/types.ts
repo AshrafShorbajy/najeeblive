@@ -491,7 +491,9 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           created_at: string
+          curriculum_id: string | null
           full_name: string
+          grade_level_id: string | null
           id: string
           phone: string | null
           updated_at: string
@@ -501,7 +503,9 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
+          curriculum_id?: string | null
           full_name?: string
+          grade_level_id?: string | null
           id?: string
           phone?: string | null
           updated_at?: string
@@ -511,13 +515,30 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
+          curriculum_id?: string | null
           full_name?: string
+          grade_level_id?: string | null
           id?: string
           phone?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_curriculum_id_fkey"
+            columns: ["curriculum_id"]
+            isOneToOne: false
+            referencedRelation: "curricula"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_grade_level_id_fkey"
+            columns: ["grade_level_id"]
+            isOneToOne: false
+            referencedRelation: "grade_levels"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       push_subscriptions: {
         Row: {
