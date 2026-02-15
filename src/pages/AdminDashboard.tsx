@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench, ImagePlus, Globe, ChevronDown } from "lucide-react";
+import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench, ImagePlus, Globe, ChevronDown, Palette, CreditCard, Percent, ShieldOff } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -72,6 +72,7 @@ export default function AdminDashboard() {
 
   // Badge counters
   const [adminActiveTab, setAdminActiveTab] = useState("curricula");
+  const [settingsSubTab, setSettingsSubTab] = useState<"design" | "payment" | "currency" | "commission" | "maintenance">("design");
   const [adminViewedTabs, setAdminViewedTabs] = useState<Set<string>>(new Set(["curricula"]));
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [pendingInvoicesCount, setPendingInvoicesCount] = useState(0);
@@ -788,209 +789,192 @@ export default function AdminDashboard() {
           )}
 
           {isAdmin && (
-            <TabsContent value="site-settings" className="mt-4 space-y-6">
-              {/* Maintenance Mode */}
-              <div className="bg-card rounded-xl p-4 border border-border space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold text-sm">إغلاق الموقع مؤقتاً</h3>
-                    <p className="text-xs text-muted-foreground">عند التفعيل ستظهر صفحة "تحت الصيانة" للزوار</p>
-                  </div>
-                  <Switch checked={maintenanceMode} onCheckedChange={setMaintenanceMode} />
-                </div>
-                {maintenanceMode && (
-                  <div className="bg-destructive/10 rounded-lg p-3 text-destructive text-xs flex items-center gap-2">
-                    <Wrench className="h-4 w-4" />
-                    الموقع مغلق حالياً - الزوار يرون صفحة الصيانة
-                  </div>
-                )}
+            <TabsContent value="site-settings" className="mt-4 space-y-4">
+              {/* Sub-tab navigation */}
+              <div className="flex flex-wrap gap-2 bg-muted p-2 rounded-lg">
+                <Button variant={settingsSubTab === "design" ? "default" : "ghost"} size="sm" onClick={() => setSettingsSubTab("design")}>
+                  <Palette className="h-4 w-4 ml-1" />
+                  التصميم
+                </Button>
+                <Button variant={settingsSubTab === "payment" ? "default" : "ghost"} size="sm" onClick={() => setSettingsSubTab("payment")}>
+                  <CreditCard className="h-4 w-4 ml-1" />
+                  طرق الدفع
+                </Button>
+                <Button variant={settingsSubTab === "currency" ? "default" : "ghost"} size="sm" onClick={() => setSettingsSubTab("currency")}>
+                  <Globe className="h-4 w-4 ml-1" />
+                  عملة الموقع
+                </Button>
+                <Button variant={settingsSubTab === "commission" ? "default" : "ghost"} size="sm" onClick={() => setSettingsSubTab("commission")}>
+                  <Percent className="h-4 w-4 ml-1" />
+                  نسبة العمولة
+                </Button>
+                <Button variant={settingsSubTab === "maintenance" ? "default" : "ghost"} size="sm" onClick={() => setSettingsSubTab("maintenance")}>
+                  <ShieldOff className="h-4 w-4 ml-1" />
+                  إغلاق الموقع
+                </Button>
               </div>
 
-              {/* Logo Settings */}
-              <div className="bg-card rounded-xl p-4 border border-border space-y-3">
-                <h3 className="font-semibold text-sm">لوجو الموقع</h3>
-                <p className="text-[10px] text-muted-foreground">الحجم المقترح: 200×50 بكسل (نسبة 4:1) — بصيغة PNG شفافة الخلفية — أقصى حجم 500 كيلوبايت</p>
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors">
-                    <ImagePlus className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">اختر صورة اللوجو</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-                  </label>
-                  {siteLogo && (
-                    <div className="relative">
-                      <img src={siteLogo} alt="لوجو" className="h-12 object-contain rounded-lg bg-muted p-1" />
-                      <button onClick={() => setSiteLogo("")} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-4 w-4 flex items-center justify-center text-[10px]">×</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Banner Settings */}
-              <div className="bg-card rounded-xl p-4 border border-border space-y-3">
-                <h3 className="font-semibold text-sm">بانر الصفحة الرئيسية</h3>
-                <div>
-                  <Label className="text-xs">عنوان البانر</Label>
-                  <Input value={bannerTitle} onChange={e => setBannerTitle(e.target.value)} />
-                </div>
-                <div>
-                  <Label className="text-xs">وصف البانر</Label>
-                  <Input value={bannerDesc} onChange={e => setBannerDesc(e.target.value)} />
-                </div>
-                <div>
-                  <Label className="text-xs">صورة البانر</Label>
-                  <p className="text-[10px] text-muted-foreground mb-1">الحجم المقترح: 1200×400 بكسل (نسبة 3:1) — بصيغة JPG أو PNG — أقصى حجم 2 ميجابايت</p>
-                  <div className="flex items-center gap-3 mt-1">
-                    <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors">
-                      <ImagePlus className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">اختر صورة</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={handleBannerImageUpload} />
-                    </label>
-                    {bannerImage && (
-                      <div className="relative">
-                        <img src={bannerImage} alt="بانر" className="h-16 w-28 object-cover rounded-lg" />
-                        <button onClick={() => setBannerImage("")} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-4 w-4 flex items-center justify-center text-[10px]">×</button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Offers Settings */}
-              <div className="bg-card rounded-xl p-4 border border-border space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm">العروض والخصومات</h3>
-                  <Button size="sm" variant="outline" onClick={addOffer}><Plus className="h-4 w-4 ml-1" />إضافة عرض</Button>
-                </div>
-                {offers.map((offer, i) => (
-                  <div key={i} className="border border-border rounded-lg p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">عرض {i + 1}</span>
-                      <Button size="icon" variant="ghost" onClick={() => removeOffer(i)}>
-                        <Trash2 className="h-3 w-3 text-destructive" />
-                      </Button>
-                    </div>
-                    <Input placeholder="عنوان العرض" value={offer.title} onChange={e => updateOffer(i, "title", e.target.value)} />
-                    <Input placeholder="وصف العرض" value={offer.description} onChange={e => updateOffer(i, "description", e.target.value)} />
-                    <p className="text-[10px] text-muted-foreground">الحجم المقترح: 600×300 بكسل (نسبة 2:1) — JPG أو PNG — أقصى 1 ميجابايت</p>
-                    <div className="flex items-center gap-2">
-                      <label className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors">
-                        <ImagePlus className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-[10px] text-muted-foreground">صورة</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={e => handleOfferImageUpload(i, e)} />
+              {/* التصميم */}
+              {settingsSubTab === "design" && (
+                <div className="space-y-6">
+                  {/* Logo Settings */}
+                  <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                    <h3 className="font-semibold text-sm">لوجو الموقع</h3>
+                    <p className="text-[10px] text-muted-foreground">الحجم المقترح: 200×50 بكسل (نسبة 4:1) — بصيغة PNG شفافة الخلفية — أقصى حجم 500 كيلوبايت</p>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors">
+                        <ImagePlus className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">اختر صورة اللوجو</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
                       </label>
-                      {offer.image_url && (
+                      {siteLogo && (
                         <div className="relative">
-                          <img src={offer.image_url} alt="" className="h-10 w-16 object-cover rounded" />
-                          <button onClick={() => { const u = [...offers]; u[i] = { ...u[i], image_url: "" }; setOffers(u); }} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-3.5 w-3.5 flex items-center justify-center text-[8px]">×</button>
+                          <img src={siteLogo} alt="لوجو" className="h-12 object-contain rounded-lg bg-muted p-1" />
+                          <button onClick={() => setSiteLogo("")} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-4 w-4 flex items-center justify-center text-[10px]">×</button>
                         </div>
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
 
-              {/* Payment Methods */}
-              <div className="bg-card rounded-xl p-4 border border-border space-y-4">
-                <h3 className="font-semibold text-sm flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-primary" />
-                  طرق الدفع
-                </h3>
-
-                {/* PayPal */}
-                <div className="border border-border rounded-lg p-3 space-y-3">
-                  <div className="flex items-center justify-between">
+                  {/* Banner Settings */}
+                  <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                    <h3 className="font-semibold text-sm">بانر الصفحة الرئيسية</h3>
                     <div>
-                      <h4 className="font-medium text-sm">PayPal</h4>
-                      <p className="text-xs text-muted-foreground">استقبال المبالغ عبر بايبال</p>
+                      <Label className="text-xs">عنوان البانر</Label>
+                      <Input value={bannerTitle} onChange={e => setBannerTitle(e.target.value)} />
                     </div>
-                    <Switch
-                      checked={paymentMethods.paypal.enabled}
-                      onCheckedChange={(v) => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, enabled: v } }))}
-                    />
-                  </div>
-                  {paymentMethods.paypal.enabled && (
-                    <div className="space-y-3">
-                      <div>
-                        <Label className="text-xs">بريد استقبال المبالغ (PayPal Email)</Label>
-                        <Input
-                          dir="ltr"
-                          type="email"
-                          placeholder="payment@example.com"
-                          value={paymentMethods.paypal.email}
-                          onChange={e => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, email: e.target.value } }))}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">PayPal Client ID</Label>
-                        <Input
-                          dir="ltr"
-                          placeholder="Client ID من لوحة PayPal Developer"
-                          value={paymentMethods.paypal.client_id || ""}
-                          onChange={e => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, client_id: e.target.value } }))}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between border border-border rounded-lg p-3">
-                        <div>
-                          <h4 className="font-medium text-xs">وضع الساند بوكس (Sandbox)</h4>
-                          <p className="text-[10px] text-muted-foreground">تفعيل وضع الاختبار — استخدم بيانات ساند بوكس من PayPal Developer</p>
-                        </div>
-                        <Switch
-                          checked={paymentMethods.paypal.sandbox ?? true}
-                          onCheckedChange={(v) => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, sandbox: v } }))}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Bank Transfer */}
-                <div className="border border-border rounded-lg p-3 space-y-3">
-                  <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-medium text-sm">تحويل بنكي</h4>
-                      <p className="text-xs text-muted-foreground">استقبال المبالغ عبر التحويل البنكي</p>
+                      <Label className="text-xs">وصف البانر</Label>
+                      <Input value={bannerDesc} onChange={e => setBannerDesc(e.target.value)} />
                     </div>
-                    <Switch
-                      checked={paymentMethods.bank_transfer.enabled}
-                      onCheckedChange={(v) => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, enabled: v } }))}
-                    />
-                  </div>
-                  {paymentMethods.bank_transfer.enabled && (
-                    <div className="space-y-2">
-                      <div>
-                        <Label className="text-xs">رقم الحساب</Label>
-                        <Input
-                          dir="ltr"
-                          placeholder="رقم الحساب البنكي"
-                          value={paymentMethods.bank_transfer.account_number}
-                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, account_number: e.target.value } }))}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">اسم صاحب الحساب</Label>
-                        <Input
-                          placeholder="الاسم كما هو مسجل في البنك"
-                          value={paymentMethods.bank_transfer.account_holder}
-                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, account_holder: e.target.value } }))}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">الفرع</Label>
-                        <Input
-                          placeholder="اسم الفرع"
-                          value={paymentMethods.bank_transfer.branch}
-                          onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, branch: e.target.value } }))}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">لوجو البنك</Label>
-                        {paymentMethods.bank_transfer.bank_logo_url && (
-                          <img src={paymentMethods.bank_transfer.bank_logo_url} alt="لوجو البنك" className="h-12 w-auto mb-2 rounded border border-border object-contain" />
+                    <div>
+                      <Label className="text-xs">صورة البانر</Label>
+                      <p className="text-[10px] text-muted-foreground mb-1">الحجم المقترح: 1200×400 بكسل (نسبة 3:1) — بصيغة JPG أو PNG — أقصى حجم 2 ميجابايت</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors">
+                          <ImagePlus className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">اختر صورة</span>
+                          <input type="file" accept="image/*" className="hidden" onChange={handleBannerImageUpload} />
+                        </label>
+                        {bannerImage && (
+                          <div className="relative">
+                            <img src={bannerImage} alt="بانر" className="h-16 w-28 object-cover rounded-lg" />
+                            <button onClick={() => setBannerImage("")} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-4 w-4 flex items-center justify-center text-[10px]">×</button>
+                          </div>
                         )}
-                        <Input
-                          type="file"
-                          accept="image/*"
-                          onChange={async (e) => {
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Offers Settings */}
+                  <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-sm">العروض والخصومات</h3>
+                      <Button size="sm" variant="outline" onClick={addOffer}><Plus className="h-4 w-4 ml-1" />إضافة عرض</Button>
+                    </div>
+                    {offers.map((offer, i) => (
+                      <div key={i} className="border border-border rounded-lg p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">عرض {i + 1}</span>
+                          <Button size="icon" variant="ghost" onClick={() => removeOffer(i)}>
+                            <Trash2 className="h-3 w-3 text-destructive" />
+                          </Button>
+                        </div>
+                        <Input placeholder="عنوان العرض" value={offer.title} onChange={e => updateOffer(i, "title", e.target.value)} />
+                        <Input placeholder="وصف العرض" value={offer.description} onChange={e => updateOffer(i, "description", e.target.value)} />
+                        <p className="text-[10px] text-muted-foreground">الحجم المقترح: 600×300 بكسل (نسبة 2:1) — JPG أو PNG — أقصى 1 ميجابايت</p>
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors">
+                            <ImagePlus className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-[10px] text-muted-foreground">صورة</span>
+                            <input type="file" accept="image/*" className="hidden" onChange={e => handleOfferImageUpload(i, e)} />
+                          </label>
+                          {offer.image_url && (
+                            <div className="relative">
+                              <img src={offer.image_url} alt="" className="h-10 w-16 object-cover rounded" />
+                              <button onClick={() => { const u = [...offers]; u[i] = { ...u[i], image_url: "" }; setOffers(u); }} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-3.5 w-3.5 flex items-center justify-center text-[8px]">×</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* طرق الدفع */}
+              {settingsSubTab === "payment" && (
+                <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-primary" />
+                    طرق الدفع
+                  </h3>
+
+                  {/* PayPal */}
+                  <div className="border border-border rounded-lg p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium text-sm">PayPal</h4>
+                        <p className="text-xs text-muted-foreground">استقبال المبالغ عبر بايبال</p>
+                      </div>
+                      <Switch
+                        checked={paymentMethods.paypal.enabled}
+                        onCheckedChange={(v) => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, enabled: v } }))}
+                      />
+                    </div>
+                    {paymentMethods.paypal.enabled && (
+                      <div className="space-y-3">
+                        <div>
+                          <Label className="text-xs">بريد استقبال المبالغ (PayPal Email)</Label>
+                          <Input dir="ltr" type="email" placeholder="payment@example.com" value={paymentMethods.paypal.email} onChange={e => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, email: e.target.value } }))} />
+                        </div>
+                        <div>
+                          <Label className="text-xs">PayPal Client ID</Label>
+                          <Input dir="ltr" placeholder="Client ID من لوحة PayPal Developer" value={paymentMethods.paypal.client_id || ""} onChange={e => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, client_id: e.target.value } }))} />
+                        </div>
+                        <div className="flex items-center justify-between border border-border rounded-lg p-3">
+                          <div>
+                            <h4 className="font-medium text-xs">وضع الساند بوكس (Sandbox)</h4>
+                            <p className="text-[10px] text-muted-foreground">تفعيل وضع الاختبار — استخدم بيانات ساند بوكس من PayPal Developer</p>
+                          </div>
+                          <Switch checked={paymentMethods.paypal.sandbox ?? true} onCheckedChange={(v) => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, sandbox: v } }))} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bank Transfer */}
+                  <div className="border border-border rounded-lg p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium text-sm">تحويل بنكي</h4>
+                        <p className="text-xs text-muted-foreground">استقبال المبالغ عبر التحويل البنكي</p>
+                      </div>
+                      <Switch
+                        checked={paymentMethods.bank_transfer.enabled}
+                        onCheckedChange={(v) => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, enabled: v } }))}
+                      />
+                    </div>
+                    {paymentMethods.bank_transfer.enabled && (
+                      <div className="space-y-2">
+                        <div>
+                          <Label className="text-xs">رقم الحساب</Label>
+                          <Input dir="ltr" placeholder="رقم الحساب البنكي" value={paymentMethods.bank_transfer.account_number} onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, account_number: e.target.value } }))} />
+                        </div>
+                        <div>
+                          <Label className="text-xs">اسم صاحب الحساب</Label>
+                          <Input placeholder="الاسم كما هو مسجل في البنك" value={paymentMethods.bank_transfer.account_holder} onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, account_holder: e.target.value } }))} />
+                        </div>
+                        <div>
+                          <Label className="text-xs">الفرع</Label>
+                          <Input placeholder="اسم الفرع" value={paymentMethods.bank_transfer.branch} onChange={e => setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, branch: e.target.value } }))} />
+                        </div>
+                        <div>
+                          <Label className="text-xs">لوجو البنك</Label>
+                          {paymentMethods.bank_transfer.bank_logo_url && (
+                            <img src={paymentMethods.bank_transfer.bank_logo_url} alt="لوجو البنك" className="h-12 w-auto mb-2 rounded border border-border object-contain" />
+                          )}
+                          <Input type="file" accept="image/*" onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (!file) return;
                             const path = `bank-logos/${Date.now()}-${file.name}`;
@@ -999,107 +983,105 @@ export default function AdminDashboard() {
                             const { data: urlData } = supabase.storage.from("uploads").getPublicUrl(path);
                             setPaymentMethods(prev => ({ ...prev, bank_transfer: { ...prev.bank_transfer, bank_logo_url: urlData.publicUrl } }));
                             toast.success("تم رفع اللوجو");
-                          }}
-                        />
+                          }} />
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Currency Settings */}
-              <div className="bg-card rounded-xl p-4 border border-border space-y-4">
-                <h3 className="font-semibold text-sm flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-primary" />
-                  عملة الموقع
-                </h3>
-                <p className="text-xs text-muted-foreground">الأسعار تُخزن بالدولار الأمريكي (USD) ويتم تحويلها تلقائياً حسب العملة المختارة وسعر الصرف</p>
-                <div className="space-y-3">
-                  <div>
-                    <Label className="text-xs">العملة المعروضة</Label>
-                    <Popover open={currencyPopoverOpen} onOpenChange={setCurrencyPopoverOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
-                          {(() => {
-                            const cur = ALL_CURRENCIES.find(c => c.code === activeCurrency);
-                            return cur ? `${cur.symbol} - ${cur.name} (${cur.code})` : "اختر العملة";
-                          })()}
-                          <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full min-w-[280px] p-0 z-50" align="start">
-                        <Command>
-                          <CommandInput placeholder="ابحث عن عملة..." className="text-right" dir="rtl" />
-                          <CommandList className="max-h-60">
-                            <CommandEmpty>لم يتم العثور على عملة</CommandEmpty>
-                            <CommandGroup>
-                              {ALL_CURRENCIES.map(c => (
-                                <CommandItem
-                                  key={c.code}
-                                  value={`${c.code} ${c.name} ${c.symbol}`}
-                                  onSelect={() => {
-                                    setActiveCurrency(c.code);
-                                    setCurrencyPopoverOpen(false);
-                                  }}
-                                  className="cursor-pointer"
-                                >
-                                  <span className={activeCurrency === c.code ? "font-bold text-primary" : ""}>
-                                    {c.symbol} - {c.name} ({c.code})
-                                  </span>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                    )}
                   </div>
-                  {activeCurrency !== "USD" && (
+                </div>
+              )}
+
+              {/* عملة الموقع */}
+              {settingsSubTab === "currency" && (
+                <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-primary" />
+                    عملة الموقع
+                  </h3>
+                  <p className="text-xs text-muted-foreground">الأسعار تُخزن بالدولار الأمريكي (USD) ويتم تحويلها تلقائياً حسب العملة المختارة وسعر الصرف</p>
+                  <div className="space-y-3">
                     <div>
-                      <Label className="text-xs">سعر الصرف (1 دولار = ؟ {ALL_CURRENCIES.find(c => c.code === activeCurrency)?.symbol})</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        dir="ltr"
-                        value={exchangeRate}
-                        onChange={e => setExchangeRate(e.target.value)}
-                        placeholder="مثال: 3.75"
-                      />
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        مثال: إذا كان سعر الحصة 10$ سيظهر للمستخدم {(10 * (parseFloat(exchangeRate) || 1)).toFixed(2)} {ALL_CURRENCIES.find(c => c.code === activeCurrency)?.symbol}
-                      </p>
+                      <Label className="text-xs">العملة المعروضة</Label>
+                      <Popover open={currencyPopoverOpen} onOpenChange={setCurrencyPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                            {(() => {
+                              const cur = ALL_CURRENCIES.find(c => c.code === activeCurrency);
+                              return cur ? `${cur.symbol} - ${cur.name} (${cur.code})` : "اختر العملة";
+                            })()}
+                            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full min-w-[280px] p-0 z-50" align="start">
+                          <Command>
+                            <CommandInput placeholder="ابحث عن عملة..." className="text-right" dir="rtl" />
+                            <CommandList className="max-h-60">
+                              <CommandEmpty>لم يتم العثور على عملة</CommandEmpty>
+                              <CommandGroup>
+                                {ALL_CURRENCIES.map(c => (
+                                  <CommandItem key={c.code} value={`${c.code} ${c.name} ${c.symbol}`} onSelect={() => { setActiveCurrency(c.code); setCurrencyPopoverOpen(false); }} className="cursor-pointer">
+                                    <span className={activeCurrency === c.code ? "font-bold text-primary" : ""}>
+                                      {c.symbol} - {c.name} ({c.code})
+                                    </span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    {activeCurrency !== "USD" && (
+                      <div>
+                        <Label className="text-xs">سعر الصرف (1 دولار = ؟ {ALL_CURRENCIES.find(c => c.code === activeCurrency)?.symbol})</Label>
+                        <Input type="number" step="0.01" min="0" dir="ltr" value={exchangeRate} onChange={e => setExchangeRate(e.target.value)} placeholder="مثال: 3.75" />
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          مثال: إذا كان سعر الحصة 10$ سيظهر للمستخدم {(10 * (parseFloat(exchangeRate) || 1)).toFixed(2)} {ALL_CURRENCIES.find(c => c.code === activeCurrency)?.symbol}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* نسبة العمولة */}
+              {settingsSubTab === "commission" && (
+                <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4 text-primary" />
+                    نسبة عمولة المنصة
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    يتم خصم هذه النسبة من إجمالي مبلغ الحصة عند إتمامها كحصة المنصة، والباقي يذهب للمعلم
+                  </p>
+                  <div>
+                    <Label className="text-xs">نسبة العمولة (%)</Label>
+                    <Input type="number" step="1" min="0" max="100" dir="ltr" value={commissionRate} onChange={e => setCommissionRate(e.target.value)} placeholder="مثال: 20" />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      مثال: حصة بـ 100$ → المنصة: {((100 * (parseFloat(commissionRate) || 0)) / 100).toFixed(2)}$ | المعلم: {(100 - (100 * (parseFloat(commissionRate) || 0)) / 100).toFixed(2)}$
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* إغلاق الموقع */}
+              {settingsSubTab === "maintenance" && (
+                <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-sm">إغلاق الموقع مؤقتاً</h3>
+                      <p className="text-xs text-muted-foreground">عند التفعيل ستظهر صفحة "تحت الصيانة" للزوار</p>
+                    </div>
+                    <Switch checked={maintenanceMode} onCheckedChange={setMaintenanceMode} />
+                  </div>
+                  {maintenanceMode && (
+                    <div className="bg-destructive/10 rounded-lg p-3 text-destructive text-xs flex items-center gap-2">
+                      <Wrench className="h-4 w-4" />
+                      الموقع مغلق حالياً - الزوار يرون صفحة الصيانة
                     </div>
                   )}
                 </div>
-              </div>
-
-              {/* Commission Rate Settings */}
-              <div className="bg-card rounded-xl p-4 border border-border space-y-4">
-                <h3 className="font-semibold text-sm flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-primary" />
-                  نسبة عمولة المنصة
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  يتم خصم هذه النسبة من إجمالي مبلغ الحصة عند إتمامها كحصة المنصة، والباقي يذهب للمعلم
-                </p>
-                <div>
-                  <Label className="text-xs">نسبة العمولة (%)</Label>
-                  <Input
-                    type="number"
-                    step="1"
-                    min="0"
-                    max="100"
-                    dir="ltr"
-                    value={commissionRate}
-                    onChange={e => setCommissionRate(e.target.value)}
-                    placeholder="مثال: 20"
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    مثال: حصة بـ 100$ → المنصة: {((100 * (parseFloat(commissionRate) || 0)) / 100).toFixed(2)}$ | المعلم: {(100 - (100 * (parseFloat(commissionRate) || 0)) / 100).toFixed(2)}$
-                  </p>
-                </div>
-              </div>
+              )}
 
               <Button onClick={saveSiteSettings} variant="hero" className="w-full" disabled={savingSettings}>
                 <Save className="h-4 w-4 ml-1" />
