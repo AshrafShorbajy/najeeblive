@@ -25,11 +25,23 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   const [curricula, setCurricula] = useState<any[]>([]);
   const [gradeLevels, setGradeLevels] = useState<any[]>([]);
   const [selectedCurriculum, setSelectedCurriculum] = useState("");
   const [selectedGrade, setSelectedGrade] = useState("");
+
+  // Detect password recovery event
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setShowPasswordForm(true);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -89,6 +101,38 @@ export default function ProfilePage() {
       <div className="px-4 py-6 max-w-lg mx-auto">
         <h1 className="text-2xl font-bold mb-6">الملف الشخصي</h1>
 
+        {showPasswordForm && (
+          <div className="bg-card rounded-xl p-4 border border-primary space-y-4 mb-6">
+            <h2 className="font-bold">تعيين كلمة مرور جديدة</h2>
+            <div className="space-y-2">
+              <Label>كلمة المرور الجديدة</Label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="أدخل كلمة المرور الجديدة"
+                dir="ltr"
+              />
+            </div>
+            <Button
+              variant="hero"
+              className="w-full"
+              disabled={newPassword.length < 6}
+              onClick={async () => {
+                const { error } = await supabase.auth.updateUser({ password: newPassword });
+                if (error) toast.error("حدث خطأ أثناء تحديث كلمة المرور");
+                else {
+                  toast.success("تم تغيير كلمة المرور بنجاح");
+                  setShowPasswordForm(false);
+                  setNewPassword("");
+                }
+              }}
+            >
+              حفظ كلمة المرور
+            </Button>
+          </div>
+        )}
+
         <div className="bg-card rounded-xl p-4 border border-border space-y-4 mb-6">
           <div className="space-y-2">
             <Label>الاسم الكامل</Label>
@@ -104,6 +148,21 @@ export default function ProfilePage() {
           </div>
           <Button onClick={handleSave} disabled={saving} variant="hero" className="w-full">
             {saving ? "جارٍ الحفظ..." : "حفظ التعديلات"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={async () => {
+              if (!user?.email) return;
+              const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+                redirectTo: window.location.origin + "/profile",
+              });
+              if (error) toast.error("حدث خطأ أثناء الإرسال");
+              else toast.success("تم إرسال رابط تغيير كلمة المرور إلى بريدك الإلكتروني");
+            }}
+          >
+            تغيير كلمة المرور
           </Button>
         </div>
 
