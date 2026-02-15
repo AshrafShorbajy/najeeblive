@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell } from "lucide-react";
+import { Bell, BellRing } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import {
   Popover,
   PopoverContent,
@@ -20,6 +21,7 @@ interface Notification {
 
 export function NotificationBell() {
   const { user, isTeacher } = useAuthContext();
+  const { permission, isSubscribed, subscribe } = usePushNotifications();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -223,6 +225,14 @@ export function NotificationBell() {
           )}
         </div>
         <div className="max-h-80 overflow-y-auto">
+          {!isSubscribed && permission !== "denied" && (
+            <button
+              onClick={subscribe}
+              className="w-full p-3 text-xs text-center bg-primary/10 text-primary hover:bg-primary/20 transition-colors border-b border-border"
+            >
+              🔔 تفعيل الإشعارات على هذا الجهاز
+            </button>
+          )}
           {notifications.length === 0 ? (
             <p className="text-center text-muted-foreground text-sm py-8">
               لا توجد تنبيهات
