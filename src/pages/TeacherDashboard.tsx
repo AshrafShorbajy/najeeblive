@@ -420,13 +420,13 @@ export default function TeacherDashboard() {
           <TabsList className="w-full flex-wrap h-auto">
             <TabsTrigger value="profile" className="flex-1">المعلومات</TabsTrigger>
             <TabsTrigger value="lessons" className="flex-1">الحصص</TabsTrigger>
-            <TabsTrigger value="bookings" className="flex-1 relative">
+            <TabsTrigger value="bookings" className="flex-1 relative overflow-visible">
               الطلبات
-              {!viewedTabs.has("bookings") && <TabBadge count={newBookingsCount} />}
+              {!viewedTabs.has("bookings") && newBookingsCount > 0 && <TabBadge count={newBookingsCount} />}
             </TabsTrigger>
-            <TabsTrigger value="messages" className="flex-1 relative">
+            <TabsTrigger value="messages" className="flex-1 relative overflow-visible">
               الرسائل
-              {!viewedTabs.has("messages") && <TabBadge count={teacherUnreadCount} />}
+              {!viewedTabs.has("messages") && teacherUnreadCount > 0 && <TabBadge count={teacherUnreadCount} />}
             </TabsTrigger>
             <TabsTrigger value="earnings" className="flex-1">الأرباح</TabsTrigger>
           </TabsList>

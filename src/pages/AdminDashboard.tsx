@@ -69,6 +69,13 @@ export default function AdminDashboard() {
   const [accountingRecords, setAccountingRecords] = useState<any[]>([]);
   const [accountingProfiles, setAccountingProfiles] = useState<Record<string, any>>({});
 
+  // Badge counters
+  const [adminActiveTab, setAdminActiveTab] = useState("curricula");
+  const [adminViewedTabs, setAdminViewedTabs] = useState<Set<string>>(new Set(["curricula"]));
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+  const [pendingInvoicesCount, setPendingInvoicesCount] = useState(0);
+  const [pendingWithdrawalsCount, setPendingWithdrawalsCount] = useState(0);
+
   useEffect(() => {
     if (loading) return;
     if (!user || (!isAdmin && !isSupervisor)) {
@@ -152,9 +159,20 @@ export default function AdminDashboard() {
     });
 
     if (isAdmin) {
-      const { data: wData } = await supabase.from("withdrawal_requests").select("*").order("created_at", { ascending: false });
+      // Fetch pending counts for badges
+      const [ordersRes, invoicesRes, wDataRes] = await Promise.all([
+        supabase.from("bookings").select("*", { count: "exact", head: true }).eq("status", "accepted"),
+        supabase.from("invoices").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("withdrawal_requests").select("*").order("created_at", { ascending: false }),
+      ]);
+      setPendingOrdersCount(ordersRes.count ?? 0);
+      setPendingInvoicesCount(invoicesRes.count ?? 0);
+
+      const wData = wDataRes.data ?? [];
+      setPendingWithdrawalsCount(wData.filter(w => w.status === "pending").length);
+
       // Fetch teacher names for withdrawals
-      const wTeacherIds = [...new Set((wData ?? []).map((w) => w.teacher_id))];
+      const wTeacherIds = [...new Set(wData.map((w) => w.teacher_id))];
       let wProfilesMap: Record<string, any> = {};
       if (wTeacherIds.length > 0) {
         const { data: wProfiles } = await supabase.from("profiles")
@@ -162,7 +180,7 @@ export default function AdminDashboard() {
           .in("user_id", wTeacherIds);
         wProfiles?.forEach((p) => { wProfilesMap[p.user_id] = p; });
       }
-      const enrichedWithdrawals = (wData ?? []).map((w) => ({
+      const enrichedWithdrawals = wData.map((w) => ({
         ...w,
         profiles: wProfilesMap[w.teacher_id] || null,
       }));
@@ -394,7 +412,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        <Tabs defaultValue="curricula">
+        <Tabs defaultValue="curricula" value={adminActiveTab} onValueChange={(v) => { setAdminActiveTab(v); setAdminViewedTabs(prev => new Set(prev).add(v)); }}>
           <TabsList className="w-full flex-wrap h-auto gap-1">
             <TabsTrigger value="students">الطلاب</TabsTrigger>
             <TabsTrigger value="teachers">المعلمين</TabsTrigger>
@@ -402,10 +420,37 @@ export default function AdminDashboard() {
             <TabsTrigger value="grades">الصفوف</TabsTrigger>
             <TabsTrigger value="subjects">المواد</TabsTrigger>
             <TabsTrigger value="announcements">الإعلانات</TabsTrigger>
-            {isAdmin && <TabsTrigger value="invoices">الفواتير</TabsTrigger>}
-            {isAdmin && <TabsTrigger value="orders">الطلبات</TabsTrigger>}
+            {isAdmin && (
+              <TabsTrigger value="invoices" className="relative overflow-visible">
+                الفواتير
+                {!adminViewedTabs.has("invoices") && pendingInvoicesCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                    {pendingInvoicesCount > 99 ? "99+" : pendingInvoicesCount}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="orders" className="relative overflow-visible">
+                الطلبات
+                {!adminViewedTabs.has("orders") && pendingOrdersCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                    {pendingOrdersCount > 99 ? "99+" : pendingOrdersCount}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
             {isAdmin && <TabsTrigger value="skills">مهارات</TabsTrigger>}
-            {isAdmin && <TabsTrigger value="withdrawals">طلبات السحب</TabsTrigger>}
+            {isAdmin && (
+              <TabsTrigger value="withdrawals" className="relative overflow-visible">
+                طلبات السحب
+                {!adminViewedTabs.has("withdrawals") && pendingWithdrawalsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                    {pendingWithdrawalsCount > 99 ? "99+" : pendingWithdrawalsCount}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
             {isAdmin && <TabsTrigger value="accounting">المحاسبة</TabsTrigger>}
             {isAdmin && <TabsTrigger value="site-settings">إعدادات الموقع</TabsTrigger>}
           </TabsList>
