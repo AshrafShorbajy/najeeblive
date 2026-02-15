@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { BookOpen, Backpack, Sparkles } from "lucide-react";
+import { BookOpen, Backpack, Sparkles, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -20,6 +20,14 @@ const types = [
     icon: Backpack,
     path: "/lessons/bag-review",
     gradient: "gradient-secondary",
+  },
+  {
+    id: "group",
+    title: "دروس جماعية",
+    description: "كورسات جماعية مع مجموعة طلاب",
+    icon: Users,
+    path: "/lessons/group",
+    gradient: "gradient-primary",
   },
   {
     id: "skills",

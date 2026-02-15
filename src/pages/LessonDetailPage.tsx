@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Star, Clock, User, AlertTriangle, Video } from "lucide-react";
+import { Star, Clock, User, AlertTriangle, Video, Users, CalendarDays, Hash } from "lucide-react";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -23,6 +23,8 @@ export default function LessonDetailPage() {
   const [lesson, setLesson] = useState<any>(null);
   const [teacher, setTeacher] = useState<any>(null);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [enrolledCount, setEnrolledCount] = useState(0);
+  const [sessionSchedules, setSessionSchedules] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<string>("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
@@ -40,6 +42,18 @@ export default function LessonDetailPage() {
         if (data) {
           supabase.from("profiles").select("*").eq("user_id", data.teacher_id).single()
             .then(({ data: p }) => setTeacher(p));
+          // Fetch enrolled count for group lessons
+          if (data.lesson_type === "group") {
+            supabase.from("bookings").select("id", { count: "exact", head: true })
+              .eq("lesson_id", id)
+              .in("status", ["pending", "accepted", "scheduled"])
+              .then(({ count }) => setEnrolledCount(count ?? 0));
+            // Fetch session schedules
+            supabase.from("group_session_schedules").select("*")
+              .eq("lesson_id", id)
+              .order("session_number")
+              .then(({ data: schedules }) => setSessionSchedules(schedules ?? []));
+          }
         }
       });
 
@@ -57,7 +71,6 @@ export default function LessonDetailPage() {
         if (data?.value) {
           const ps = data.value as any;
           setPaymentSettings(ps);
-          // Set default to first enabled method
           if (ps.paypal?.enabled) setPaymentMethod("paypal");
           else if (ps.bank_transfer?.enabled) setPaymentMethod("bank_transfer");
         }
@@ -219,6 +232,55 @@ export default function LessonDetailPage() {
               </TabsList>
 
               <TabsContent value="about" className="space-y-4 mt-4 text-right">
+                {/* Group lesson specific info */}
+                {lesson.lesson_type === "group" && (
+                  <div className="bg-primary/5 rounded-lg p-4 space-y-3">
+                    <h3 className="font-semibold text-primary flex items-center gap-2 flex-row-reverse">
+                      <Users className="h-4 w-4" />
+                      معلومات الكورس الجماعي
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="flex items-center gap-2 flex-row-reverse">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span>العدد المتوقع: {lesson.expected_students} طلاب</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-row-reverse">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span>المسجلين: {enrolledCount} طالب</span>
+                      </div>
+                      {lesson.course_start_date && (
+                        <div className="flex items-center gap-2 flex-row-reverse">
+                          <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                          <span>تاريخ البدء: {new Date(lesson.course_start_date).toLocaleDateString("ar")}</span>
+                        </div>
+                      )}
+                      {lesson.total_sessions && (
+                        <div className="flex items-center gap-2 flex-row-reverse">
+                          <Hash className="h-4 w-4 text-muted-foreground" />
+                          <span>عدد الحصص: {lesson.total_sessions}</span>
+                        </div>
+                      )}
+                    </div>
+                    {lesson.course_topic_type && (
+                      <p className="text-sm text-muted-foreground">نوع الكورس: {lesson.course_topic_type}</p>
+                    )}
+                    {/* Session schedules */}
+                    {sessionSchedules.length > 0 && (
+                      <div className="mt-2">
+                        <h4 className="font-medium text-sm mb-2">مواعيد الحصص:</h4>
+                        <div className="space-y-1">
+                          {sessionSchedules.filter(s => s.scheduled_at).map((s) => (
+                            <div key={s.id} className="flex items-center gap-2 text-xs bg-background rounded p-2 flex-row-reverse">
+                              <CalendarDays className="h-3 w-3 text-muted-foreground" />
+                              <span>الحصة {s.session_number}: {new Date(s.scheduled_at).toLocaleString("ar")}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {lesson.min_age && lesson.max_age && (
                   <div className="flex items-center gap-2 text-sm flex-row-reverse">
                     <User className="h-4 w-4 text-muted-foreground" />

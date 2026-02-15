@@ -35,6 +35,8 @@ export default function TeacherDashboard() {
     curriculum_id: "", grade_level_id: "", subject_id: "",
     skill_category_id: "", duration_minutes: 60, price: 0,
     min_age: 0, max_age: 0, notes: "",
+    expected_students: 3, total_sessions: 5, course_start_date: "",
+    course_topic_type: "", session_dates: [] as string[],
   });
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -273,7 +275,25 @@ export default function TeacherDashboard() {
 
   const handleAddLesson = async () => {
     if (!user) return;
-    const { error } = await supabase.from("lessons").insert({
+
+    // Validation for group lessons
+    if (newLesson.lesson_type === "group") {
+      if (!newLesson.course_start_date) {
+        toast.error("يجب تحديد موعد بداية الكورس");
+        return;
+      }
+      if (newLesson.total_sessions < 5) {
+        toast.error("يجب أن يكون عدد الحصص 5 على الأقل");
+        return;
+      }
+      const filledDates = newLesson.session_dates.filter(d => d.trim() !== "");
+      if (filledDates.length < 5) {
+        toast.error("يجب إدخال 5 مواعيد حصص على الأقل لتفعيل الكورس");
+        return;
+      }
+    }
+
+    const { data: lessonData, error } = await supabase.from("lessons").insert({
       teacher_id: user.id,
       title: newLesson.title,
       description: newLesson.description,
@@ -287,11 +307,34 @@ export default function TeacherDashboard() {
       min_age: newLesson.min_age || null,
       max_age: newLesson.max_age || null,
       notes: newLesson.notes,
-    });
-    if (error) toast.error("خطأ في إضافة الحصة");
-    else {
+      expected_students: newLesson.lesson_type === "group" ? newLesson.expected_students : null,
+      total_sessions: newLesson.lesson_type === "group" ? newLesson.total_sessions : null,
+      course_start_date: newLesson.lesson_type === "group" && newLesson.course_start_date ? new Date(newLesson.course_start_date).toISOString() : null,
+      course_topic_type: newLesson.lesson_type === "group" ? newLesson.course_topic_type : null,
+    }).select().single();
+
+    if (error || !lessonData) {
+      toast.error("خطأ في إضافة الحصة");
+    } else {
+      // Insert session schedules for group lessons
+      if (newLesson.lesson_type === "group") {
+        const schedules = newLesson.session_dates.map((date, i) => ({
+          lesson_id: lessonData.id,
+          session_number: i + 1,
+          scheduled_at: date ? new Date(date).toISOString() : null,
+        }));
+        await supabase.from("group_session_schedules").insert(schedules);
+      }
       toast.success("تمت إضافة الحصة");
       setAddDialogOpen(false);
+      setNewLesson({
+        title: "", description: "", lesson_type: "tutoring",
+        curriculum_id: "", grade_level_id: "", subject_id: "",
+        skill_category_id: "", duration_minutes: 60, price: 0,
+        min_age: 0, max_age: 0, notes: "",
+        expected_students: 3, total_sessions: 5, course_start_date: "",
+        course_topic_type: "", session_dates: [],
+      });
       fetchLessons();
     }
   };
@@ -331,6 +374,10 @@ export default function TeacherDashboard() {
       max_age: editLesson.max_age || null,
       notes: editLesson.notes,
       is_active: editLesson.is_active,
+      expected_students: editLesson.lesson_type === "group" ? (editLesson.expected_students || null) : null,
+      total_sessions: editLesson.lesson_type === "group" ? (editLesson.total_sessions || null) : null,
+      course_start_date: editLesson.lesson_type === "group" && editLesson.course_start_date ? new Date(editLesson.course_start_date).toISOString() : null,
+      course_topic_type: editLesson.lesson_type === "group" ? (editLesson.course_topic_type || null) : null,
     }).eq("id", editLesson.id);
     if (error) toast.error("خطأ في تعديل الحصة");
     else {
@@ -482,11 +529,12 @@ export default function TeacherDashboard() {
                       <SelectContent>
                         <SelectItem value="tutoring">تقوية ومراجعة</SelectItem>
                         <SelectItem value="bag_review">مراجعة الشنطة</SelectItem>
+                        <SelectItem value="group">دروس جماعية</SelectItem>
                         <SelectItem value="skills">مهارات ومواهب</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  {newLesson.lesson_type !== "skills" && (
+                  {(newLesson.lesson_type === "tutoring" || newLesson.lesson_type === "bag_review" || newLesson.lesson_type === "group") && (
                     <>
                       <div><Label>المنهج</Label>
                         <Select value={newLesson.curriculum_id} onValueChange={(v) => setNewLesson({ ...newLesson, curriculum_id: v, grade_level_id: "", subject_id: "" })}>
@@ -500,7 +548,7 @@ export default function TeacherDashboard() {
                           <SelectContent>{gradeLevels.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                      {newLesson.lesson_type === "tutoring" && (
+                      {(newLesson.lesson_type === "tutoring" || newLesson.lesson_type === "group") && (
                         <div><Label>المادة</Label>
                           <Select value={newLesson.subject_id} onValueChange={(v) => setNewLesson({ ...newLesson, subject_id: v })}>
                             <SelectTrigger><SelectValue placeholder="اختر المادة" /></SelectTrigger>
@@ -523,6 +571,66 @@ export default function TeacherDashboard() {
                     <div><Label>السعر ($)</Label><Input type="number" value={newLesson.price} onChange={(e) => setNewLesson({ ...newLesson, price: parseFloat(e.target.value) || 0 })} /></div>
                   </div>
                   <div><Label>ملاحظات</Label><Textarea value={newLesson.notes} onChange={(e) => setNewLesson({ ...newLesson, notes: e.target.value })} /></div>
+                  
+                  {/* Group lesson specific fields */}
+                  {newLesson.lesson_type === "group" && (
+                    <div className="border border-primary/20 rounded-lg p-3 space-y-3 bg-primary/5">
+                      <h4 className="font-semibold text-sm text-primary">إعدادات الكورس الجماعي</h4>
+                      <div><Label>عدد الطلاب المتوقع</Label>
+                        <Select value={String(newLesson.expected_students)} onValueChange={(v) => setNewLesson({ ...newLesson, expected_students: parseInt(v) })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="3">3 طلاب</SelectItem>
+                            <SelectItem value="7">7 طلاب</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div><Label>نوع الكورس</Label>
+                        <Select value={newLesson.course_topic_type} onValueChange={(v) => setNewLesson({ ...newLesson, course_topic_type: v })}>
+                          <SelectTrigger><SelectValue placeholder="اختر نوع الكورس" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="موضوع محدد">موضوع محدد في المنهج</SelectItem>
+                            <SelectItem value="المنهج كامل">المنهج كامل</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div><Label>موعد بداية الكورس</Label>
+                        <Input type="datetime-local" value={newLesson.course_start_date} onChange={(e) => setNewLesson({ ...newLesson, course_start_date: e.target.value })} dir="ltr" />
+                      </div>
+                      <div><Label>عدد الحصص المقررة (5 كحد أدنى)</Label>
+                        <Input type="number" min={5} value={newLesson.total_sessions} onChange={(e) => {
+                          const val = Math.max(5, parseInt(e.target.value) || 5);
+                          const dates = [...newLesson.session_dates];
+                          while (dates.length < val) dates.push("");
+                          setNewLesson({ ...newLesson, total_sessions: val, session_dates: dates.slice(0, val) });
+                        }} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>مواعيد الحصص (أدخل 5 مواعيد على الأقل)</Label>
+                        <div className="max-h-48 overflow-y-auto space-y-2">
+                          {Array.from({ length: newLesson.total_sessions }).map((_, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground min-w-[50px]">حصة {i + 1}</span>
+                              <Input
+                                type="datetime-local"
+                                dir="ltr"
+                                value={newLesson.session_dates[i] || ""}
+                                onChange={(e) => {
+                                  const dates = [...newLesson.session_dates];
+                                  while (dates.length <= i) dates.push("");
+                                  dates[i] = e.target.value;
+                                  setNewLesson({ ...newLesson, session_dates: dates });
+                                }}
+                                className="text-xs"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">* يمكنك إضافة بقية المواعيد لاحقاً بعد بدء الكورس</p>
+                      </div>
+                    </div>
+                  )}
+
                   <Button onClick={handleAddLesson} variant="hero" className="w-full">إضافة الحصة</Button>
                 </div>
               </DialogContent>
@@ -562,11 +670,12 @@ export default function TeacherDashboard() {
                         <SelectContent>
                           <SelectItem value="tutoring">تقوية ومراجعة</SelectItem>
                           <SelectItem value="bag_review">مراجعة الشنطة</SelectItem>
+                          <SelectItem value="group">دروس جماعية</SelectItem>
                           <SelectItem value="skills">مهارات ومواهب</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    {editLesson.lesson_type !== "skills" && (
+                    {(editLesson.lesson_type === "tutoring" || editLesson.lesson_type === "bag_review" || editLesson.lesson_type === "group") && (
                       <>
                         <div><Label>المنهج</Label>
                           <Select value={editLesson.curriculum_id} onValueChange={(v) => {
@@ -586,7 +695,7 @@ export default function TeacherDashboard() {
                             <SelectContent>{gradeLevels.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}</SelectContent>
                           </Select>
                         </div>
-                        {editLesson.lesson_type === "tutoring" && (
+                        {(editLesson.lesson_type === "tutoring" || editLesson.lesson_type === "group") && (
                           <div><Label>المادة</Label>
                             <Select value={editLesson.subject_id} onValueChange={(v) => setEditLesson({ ...editLesson, subject_id: v })}>
                               <SelectTrigger><SelectValue placeholder="اختر المادة" /></SelectTrigger>
