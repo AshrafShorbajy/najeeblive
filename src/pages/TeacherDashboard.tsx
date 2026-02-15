@@ -819,7 +819,10 @@ export default function TeacherDashboard() {
               <h3 className="font-semibold">طلبات السحب السابقة</h3>
               {withdrawals.map((w) => (
                 <div key={w.id} className="p-3 rounded-lg border border-border flex justify-between items-center">
-                  <span className="font-medium">{format(w.amount)}</span>
+                  <div>
+                    <span className="font-medium">{format(w.amount)}</span>
+                    <p className="text-xs text-muted-foreground">{new Date(w.created_at).toLocaleDateString("ar", { year: "numeric", month: "long", day: "numeric" })}</p>
+                  </div>
                   <span className={`text-xs px-2 py-1 rounded-full ${w.status === "approved" ? "bg-success/10 text-success" : w.status === "rejected" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
                     {w.status === "pending" ? "قيد المراجعة" : w.status === "approved" ? "مقبول" : "مرفوض"}
                   </span>

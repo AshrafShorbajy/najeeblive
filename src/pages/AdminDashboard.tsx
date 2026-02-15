@@ -768,6 +768,7 @@ export default function AdminDashboard() {
                     <div>
                       <p className="font-medium text-sm">{(w as any).profiles?.full_name}</p>
                       <p className="text-lg font-bold">{format(w.amount)}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(w.created_at).toLocaleDateString("ar", { year: "numeric", month: "long", day: "numeric" })}</p>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded-full ${
                       w.status === "approved" ? "bg-success/10 text-success" :
