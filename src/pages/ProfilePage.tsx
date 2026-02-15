@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LogOut } from "lucide-react";
+import { LogOut, User, GraduationCap, HelpCircle, MessageCircle } from "lucide-react";
 
 const faqs = [
   { q: "كيف أحجز حصة؟", a: "اختر نوع الدرس، ثم اختر المعلم المناسب، وقم بشراء الحصة." },
@@ -20,7 +20,6 @@ const faqs = [
 
 export default function ProfilePage() {
   const { user, isStudent, signOut } = useAuthContext();
-  const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -33,12 +32,9 @@ export default function ProfilePage() {
   const [selectedCurriculum, setSelectedCurriculum] = useState("");
   const [selectedGrade, setSelectedGrade] = useState("");
 
-  // Detect password recovery event
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setShowPasswordForm(true);
-      }
+      if (event === "PASSWORD_RECOVERY") setShowPasswordForm(true);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -83,141 +79,168 @@ export default function ProfilePage() {
     setSaving(false);
   };
 
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } catch (e) {
-      // ignore
-    }
-    window.location.href = "/";
-  };
+  if (!user) return null;
 
-  if (!user) {
-    return null;
-  }
+  const defaultTab = isStudent ? "personal" : "personal";
 
   return (
     <AppLayout>
       <div className="px-4 py-6 max-w-lg mx-auto">
-        <h1 className="text-2xl font-bold mb-6">الملف الشخصي</h1>
+        <h1 className="text-2xl font-bold mb-4">الملف الشخصي</h1>
 
         {showPasswordForm && (
-          <div className="bg-card rounded-xl p-4 border border-primary space-y-4 mb-6">
+          <div className="bg-card rounded-xl p-4 border border-primary space-y-4 mb-4">
             <h2 className="font-bold">تعيين كلمة مرور جديدة</h2>
             <div className="space-y-2">
               <Label>كلمة المرور الجديدة</Label>
-              <Input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="أدخل كلمة المرور الجديدة"
-                dir="ltr"
-              />
+              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="أدخل كلمة المرور الجديدة" dir="ltr" />
             </div>
-            <Button
-              variant="hero"
-              className="w-full"
-              disabled={newPassword.length < 6}
-              onClick={async () => {
-                const { error } = await supabase.auth.updateUser({ password: newPassword });
-                if (error) toast.error("حدث خطأ أثناء تحديث كلمة المرور");
-                else {
-                  toast.success("تم تغيير كلمة المرور بنجاح");
-                  setShowPasswordForm(false);
-                  setNewPassword("");
-                }
-              }}
-            >
+            <Button variant="hero" className="w-full" disabled={newPassword.length < 6} onClick={async () => {
+              const { error } = await supabase.auth.updateUser({ password: newPassword });
+              if (error) toast.error("حدث خطأ أثناء تحديث كلمة المرور");
+              else { toast.success("تم تغيير كلمة المرور بنجاح"); setShowPasswordForm(false); setNewPassword(""); }
+            }}>
               حفظ كلمة المرور
             </Button>
           </div>
         )}
 
-        <div className="bg-card rounded-xl p-4 border border-border space-y-4 mb-6">
-          <div className="space-y-2">
-            <Label>الاسم الكامل</Label>
-            <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>رقم الهاتف</Label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" />
-          </div>
-          <div className="space-y-2">
-            <Label>البريد الإلكتروني</Label>
-            <Input value={user.email ?? ""} disabled dir="ltr" />
-          </div>
-          <Button onClick={handleSave} disabled={saving} variant="hero" className="w-full">
-            {saving ? "جارٍ الحفظ..." : "حفظ التعديلات"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={async () => {
-              if (!user?.email) return;
-              const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-                redirectTo: window.location.origin + "/profile",
-              });
-              if (error) toast.error("حدث خطأ أثناء الإرسال");
-              else toast.success("تم إرسال رابط تغيير كلمة المرور إلى بريدك الإلكتروني");
-            }}
-          >
-            تغيير كلمة المرور
-          </Button>
-        </div>
+        <Tabs defaultValue={defaultTab} className="w-full" dir="rtl">
+          <TabsList className="w-full grid grid-cols-4 mb-4">
+            <TabsTrigger value="personal" className="flex flex-col items-center gap-1 text-xs px-1">
+              <User className="h-4 w-4" />
+              <span>شخصية</span>
+            </TabsTrigger>
+            {isStudent && (
+              <TabsTrigger value="study" className="flex flex-col items-center gap-1 text-xs px-1">
+                <GraduationCap className="h-4 w-4" />
+                <span>دراسية</span>
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="faq" className="flex flex-col items-center gap-1 text-xs px-1">
+              <HelpCircle className="h-4 w-4" />
+              <span>الأسئلة</span>
+            </TabsTrigger>
+            <TabsTrigger value="contact" className="flex flex-col items-center gap-1 text-xs px-1">
+              <MessageCircle className="h-4 w-4" />
+              <span>تواصل</span>
+            </TabsTrigger>
+          </TabsList>
 
-        {isStudent && (
-          <div className="bg-card rounded-xl p-4 border border-border space-y-4 mb-6">
-            <h2 className="font-bold">المعلومات الدراسية</h2>
-            <div className="space-y-2">
-              <Label>المنهج الدراسي</Label>
-              <Select value={selectedCurriculum} onValueChange={(v) => { setSelectedCurriculum(v); setSelectedGrade(""); }}>
-                <SelectTrigger><SelectValue placeholder="اختر المنهج" /></SelectTrigger>
-                <SelectContent>
-                  {curricula.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Personal Info Tab */}
+          <TabsContent value="personal">
+            <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+              <div className="space-y-2">
+                <Label>الاسم الكامل</Label>
+                <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>رقم الهاتف</Label>
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" />
+              </div>
+              <div className="space-y-2">
+                <Label>البريد الإلكتروني</Label>
+                <Input value={user.email ?? ""} disabled dir="ltr" />
+              </div>
+              <Button onClick={handleSave} disabled={saving} variant="hero" className="w-full">
+                {saving ? "جارٍ الحفظ..." : "حفظ التعديلات"}
+              </Button>
+              <Button type="button" variant="outline" className="w-full" onClick={async () => {
+                if (!user?.email) return;
+                const { error } = await supabase.auth.resetPasswordForEmail(user.email, { redirectTo: window.location.origin + "/profile" });
+                if (error) toast.error("حدث خطأ أثناء الإرسال");
+                else toast.success("تم إرسال رابط تغيير كلمة المرور إلى بريدك الإلكتروني");
+              }}>
+                تغيير كلمة المرور
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label>المرحلة الدراسية</Label>
-              <Select value={selectedGrade} onValueChange={setSelectedGrade} disabled={!selectedCurriculum}>
-                <SelectTrigger><SelectValue placeholder="اختر المرحلة" /></SelectTrigger>
-                <SelectContent>
-                  {gradeLevels.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-xs text-muted-foreground">سيتم استخدام هذه المعلومات لتجهيز فلاتر البحث تلقائياً عند تصفح الدروس</p>
-          </div>
-        )}
+          </TabsContent>
 
-        <div className="bg-card rounded-xl p-4 border border-border mb-6">
-          <h2 className="font-bold mb-3">الأسئلة الشائعة</h2>
-          <Accordion type="single" collapsible>
-            {faqs.map((faq, i) => (
-              <AccordionItem key={i} value={`faq-${i}`}>
-                <AccordionTrigger className="text-sm text-right">{faq.q}</AccordionTrigger>
-                <AccordionContent className="text-sm text-muted-foreground">{faq.a}</AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </div>
+          {/* Study Info Tab - Students Only */}
+          {isStudent && (
+            <TabsContent value="study">
+              <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                <h2 className="font-bold">المعلومات الدراسية</h2>
+                <div className="space-y-2">
+                  <Label>المنهج الدراسي</Label>
+                  <Select value={selectedCurriculum} onValueChange={(v) => { setSelectedCurriculum(v); setSelectedGrade(""); }}>
+                    <SelectTrigger><SelectValue placeholder="اختر المنهج" /></SelectTrigger>
+                    <SelectContent>
+                      {curricula.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>المرحلة الدراسية</Label>
+                  <Select value={selectedGrade} onValueChange={setSelectedGrade} disabled={!selectedCurriculum}>
+                    <SelectTrigger><SelectValue placeholder="اختر المرحلة" /></SelectTrigger>
+                    <SelectContent>
+                      {gradeLevels.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground">سيتم استخدام هذه المعلومات لتجهيز فلاتر البحث تلقائياً عند تصفح الدروس</p>
+                <Button onClick={handleSave} disabled={saving} variant="hero" className="w-full">
+                  {saving ? "جارٍ الحفظ..." : "حفظ التعديلات"}
+                </Button>
+              </div>
+            </TabsContent>
+          )}
+
+          {/* FAQ Tab */}
+          <TabsContent value="faq">
+            <div className="bg-card rounded-xl p-4 border border-border">
+              <h2 className="font-bold mb-3">الأسئلة الشائعة</h2>
+              <Accordion type="single" collapsible>
+                {faqs.map((faq, i) => (
+                  <AccordionItem key={i} value={`faq-${i}`}>
+                    <AccordionTrigger className="text-sm text-right">{faq.q}</AccordionTrigger>
+                    <AccordionContent className="text-sm text-muted-foreground">{faq.a}</AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </div>
+          </TabsContent>
+
+          {/* Contact Tab */}
+          <TabsContent value="contact">
+            <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+              <h2 className="font-bold">تواصل معنا</h2>
+              <p className="text-sm text-muted-foreground">يمكنك التواصل معنا عبر الوسائل التالية:</p>
+              <div className="space-y-3">
+                <a href="mailto:support@sudtutor.com" className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                  <span className="text-xl">📧</span>
+                  <div>
+                    <p className="font-medium text-sm">البريد الإلكتروني</p>
+                    <p className="text-xs text-muted-foreground" dir="ltr">support@sudtutor.com</p>
+                  </div>
+                </a>
+                <a href="https://wa.me/249123456789" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                  <span className="text-xl">💬</span>
+                  <div>
+                    <p className="font-medium text-sm">واتساب</p>
+                    <p className="text-xs text-muted-foreground" dir="ltr">+249 123 456 789</p>
+                  </div>
+                </a>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
 
         <button
           type="button"
           onClick={() => {
-            console.log("LOGOUT CLICKED");
             supabase.auth.signOut({ scope: 'local' }).then(() => {
               window.location.href = "/";
             }).catch(() => {
               window.location.href = "/";
             });
           }}
-          className="w-full bg-destructive text-destructive-foreground rounded-lg py-3 font-medium flex items-center justify-center gap-2"
+          className="w-full mt-6 bg-destructive text-destructive-foreground rounded-lg py-3 font-medium flex items-center justify-center gap-2"
         >
           <LogOut className="h-4 w-4" />
           تسجيل الخروج
