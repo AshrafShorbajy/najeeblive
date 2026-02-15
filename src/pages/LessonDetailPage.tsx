@@ -14,91 +14,112 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import React from "react";
-import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
-
-class PayPalErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; errorMessage: string }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false, errorMessage: "" };
-  }
-  static getDerivedStateFromError(error: any) {
-    return { hasError: true, errorMessage: String(error?.message || error) };
-  }
-  componentDidCatch(error: any, info: any) {
-    console.error("PayPal Error Boundary caught:", error, info);
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="p-3 rounded-lg bg-destructive/10 text-sm text-destructive text-center space-y-1">
-          <p>حدث خطأ في تحميل PayPal.</p>
-          <p className="text-[10px] opacity-70 dir-ltr" dir="ltr">{this.state.errorMessage}</p>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-function PayPalPaymentButtons({ lesson, buying, onSuccess }: {
+function PayPalDirectButtons({ clientId, lesson, buying, onSuccess }: {
+  clientId: string;
   lesson: any;
   buying: boolean;
   onSuccess: (orderData: any) => Promise<void>;
 }) {
-  const [sdkReady, setSdkReady] = React.useState(false);
-  const [sdkError, setSdkError] = React.useState<string | null>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [status, setStatus] = React.useState<"loading" | "ready" | "error">("loading");
+  const [errorMsg, setErrorMsg] = React.useState("");
+
+  React.useEffect(() => {
+    if (!clientId || !containerRef.current) return;
+
+    // Check if script already loaded
+    const existingScript = document.querySelector(`script[src*="paypal.com/sdk/js"]`);
+    if (existingScript) {
+      existingScript.remove();
+      // Clear PayPal global
+      (window as any).paypal = undefined;
+    }
+
+    const script = document.createElement("script");
+    script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=USD&intent=capture&components=buttons`;
+    script.async = true;
+
+    script.onload = () => {
+      try {
+        const paypal = (window as any).paypal;
+        if (!paypal?.Buttons) {
+          setStatus("error");
+          setErrorMsg("PayPal SDK loaded but Buttons component unavailable. Client ID may be invalid.");
+          return;
+        }
+
+        if (!containerRef.current) return;
+        containerRef.current.innerHTML = "";
+
+        paypal.Buttons({
+          style: { layout: "vertical", shape: "rect", label: "pay" },
+          createOrder: (_data: any, actions: any) => {
+            return actions.order.create({
+              intent: "CAPTURE",
+              purchase_units: [{
+                amount: { value: String(lesson.price), currency_code: "USD" },
+                description: lesson.title,
+              }],
+            });
+          },
+          onApprove: async (_data: any, actions: any) => {
+            try {
+              const order = await actions.order?.capture();
+              if (order?.status === "COMPLETED") {
+                await onSuccess(order);
+              } else {
+                toast.error("لم يتم إكمال الدفع");
+              }
+            } catch (err) {
+              console.error("PayPal approve error:", err);
+              toast.error("حدث خطأ أثناء معالجة الدفع");
+            }
+          },
+          onError: (err: any) => {
+            console.error("PayPal button error:", err);
+            setStatus("error");
+            setErrorMsg(String(err?.message || err));
+          },
+        }).render(containerRef.current).then(() => {
+          setStatus("ready");
+        }).catch((err: any) => {
+          console.error("PayPal render error:", err);
+          setStatus("error");
+          setErrorMsg(String(err?.message || err));
+        });
+      } catch (err: any) {
+        console.error("PayPal init error:", err);
+        setStatus("error");
+        setErrorMsg(String(err?.message || err));
+      }
+    };
+
+    script.onerror = (e) => {
+      console.error("PayPal script load error:", e);
+      setStatus("error");
+      setErrorMsg("فشل تحميل PayPal SDK - تحقق من اتصال الإنترنت أو صحة Client ID");
+    };
+
+    document.body.appendChild(script);
+
+    return () => {
+      // Cleanup
+      try { script.remove(); } catch {}
+    };
+  }, [clientId, lesson.price, lesson.title]);
 
   return (
     <div>
-      {sdkError && (
-        <div className="p-3 rounded-lg bg-destructive/10 text-sm text-destructive text-center space-y-1">
-          <p>خطأ في تحميل PayPal SDK</p>
-          <p className="text-[10px] opacity-70" dir="ltr">{sdkError}</p>
-        </div>
-      )}
-      {!sdkReady && !sdkError && (
+      {status === "loading" && (
         <div className="p-3 text-center text-sm text-muted-foreground">جارٍ تحميل PayPal...</div>
       )}
-      <PayPalButtons
-        style={{ layout: "vertical", shape: "rect", label: "pay" }}
-        disabled={buying}
-        onInit={() => {
-          console.log("PayPal Buttons initialized successfully");
-          setSdkReady(true);
-        }}
-        onError={(err: any) => {
-          console.error("PayPal Buttons error:", err);
-          setSdkError(String(err?.message || err));
-        }}
-        createOrder={(_data: any, actions: any) => {
-          return actions.order.create({
-            intent: "CAPTURE",
-            purchase_units: [{
-              amount: {
-                value: String(lesson.price),
-                currency_code: "USD",
-              },
-              description: lesson.title,
-            }],
-          });
-        }}
-        onApprove={async (_data: any, actions: any) => {
-          try {
-            const order = await actions.order?.capture();
-            if (order?.status === "COMPLETED") {
-              await onSuccess(order);
-            } else {
-              toast.error("لم يتم إكمال الدفع");
-            }
-          } catch (err) {
-            console.error("PayPal approve error:", err);
-            toast.error("حدث خطأ أثناء معالجة الدفع");
-          }
-        }}
-      />
+      {status === "error" && (
+        <div className="p-3 rounded-lg bg-destructive/10 text-sm text-destructive text-center space-y-1">
+          <p>خطأ في تحميل PayPal</p>
+          <p className="text-[10px] opacity-70" dir="ltr">{errorMsg}</p>
+        </div>
+      )}
+      <div ref={containerRef} className={status === "loading" ? "hidden" : ""} />
     </div>
   );
 }
@@ -373,25 +394,15 @@ export default function LessonDetailPage() {
                         </RadioGroup>
                         {paymentMethod === "paypal" && paymentSettings?.paypal?.client_id && (
                           <div className="space-y-3">
-                            <PayPalErrorBoundary>
-                                <PayPalScriptProvider 
-                                  options={{
-                                    clientId: paymentSettings.paypal.client_id,
-                                    currency: "USD",
-                                    intent: "capture",
-                                    components: "buttons",
-                                  }} 
-                                  key={`paypal-${paymentSettings.paypal.sandbox ? "sandbox" : "live"}-${paymentSettings.paypal.client_id.slice(-6)}`}
-                                >
-                                  <PayPalPaymentButtons 
-                                    lesson={lesson} 
-                                    buying={buying} 
-                                    onSuccess={handlePayPalSuccess} 
-                                  />
-                                </PayPalScriptProvider>
-                            </PayPalErrorBoundary>
+                            <PayPalDirectButtons
+                              clientId={paymentSettings.paypal.client_id}
+                              lesson={lesson}
+                              buying={buying}
+                              onSuccess={handlePayPalSuccess}
+                              key={`paypal-${paymentSettings.paypal.sandbox ? "sandbox" : "live"}-${paymentSettings.paypal.client_id.slice(-6)}`}
+                            />
                             {paymentSettings.paypal.sandbox && (
-                              <p className="text-[10px] text-center text-amber-600 bg-amber-50 rounded p-1">⚠️ وضع الاختبار (Sandbox)</p>
+                              <p className="text-[10px] text-center text-warning bg-warning/10 rounded p-1">⚠️ وضع الاختبار (Sandbox)</p>
                             )}
                           </div>
                         )}
