@@ -25,6 +25,9 @@ export default function InvoicesManagement() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [filterDay, setFilterDay] = useState("");
+  const [filterMonth, setFilterMonth] = useState("all");
+  const [filterYear, setFilterYear] = useState("all");
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [adminNotes, setAdminNotes] = useState("");
   const [updating, setUpdating] = useState(false);
@@ -205,7 +208,13 @@ export default function InvoicesManagement() {
       teacherName.includes(search) ||
       lessonTitle.includes(search);
     const matchesStatus = statusFilter === "all" || inv.status === statusFilter;
-    return matchesSearch && matchesStatus;
+
+    const invDate = new Date(inv.created_at);
+    const matchesDay = !filterDay || invDate.getDate() === parseInt(filterDay);
+    const matchesMonth = filterMonth === "all" || (invDate.getMonth() + 1) === parseInt(filterMonth);
+    const matchesYear = filterYear === "all" || invDate.getFullYear() === parseInt(filterYear);
+
+    return matchesSearch && matchesStatus && matchesDay && matchesMonth && matchesYear;
   });
 
   if (loading) {
@@ -342,22 +351,57 @@ export default function InvoicesManagement() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="بحث بالاسم أو الحصة..." value={search} onChange={e => setSearch(e.target.value)} className="pr-10" />
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="بحث بالاسم أو الحصة..." value={search} onChange={e => setSearch(e.target.value)} className="pr-10" />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-40">
+              <SelectValue placeholder="الحالة" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">كل الحالات</SelectItem>
+              <SelectItem value="pending">بانتظار المراجعة</SelectItem>
+              <SelectItem value="paid">مدفوع</SelectItem>
+              <SelectItem value="rejected">مرفوض</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-40">
-            <SelectValue placeholder="الحالة" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">الكل</SelectItem>
-            <SelectItem value="pending">بانتظار المراجعة</SelectItem>
-            <SelectItem value="paid">مدفوع</SelectItem>
-            <SelectItem value="rejected">مرفوض</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Input
+            type="number"
+            min="1"
+            max="31"
+            placeholder="اليوم (1-31)"
+            value={filterDay}
+            onChange={e => setFilterDay(e.target.value)}
+            className="w-full sm:w-32"
+          />
+          <Select value={filterMonth} onValueChange={setFilterMonth}>
+            <SelectTrigger className="w-full sm:w-36">
+              <SelectValue placeholder="الشهر" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">كل الأشهر</SelectItem>
+              {["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"].map((m, i) => (
+                <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterYear} onValueChange={setFilterYear}>
+            <SelectTrigger className="w-full sm:w-32">
+              <SelectValue placeholder="السنة" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">كل السنوات</SelectItem>
+              {Array.from(new Set(invoices.map(i => new Date(i.created_at).getFullYear()))).sort((a, b) => b - a).map(y => (
+                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground">{filtered.length} فاتورة</p>
