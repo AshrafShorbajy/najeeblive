@@ -54,6 +54,8 @@ export default function AdminDashboard() {
   const [bannerDesc, setBannerDesc] = useState("");
   const [bannerImage, setBannerImage] = useState("");
   const [siteLogo, setSiteLogo] = useState("");
+  const [siteName, setSiteName] = useState("");
+  const [siteFavicon, setSiteFavicon] = useState("");
   const [offers, setOffers] = useState<{title: string; description: string; image_url?: string}[]>([]);
   const [savingSettings, setSavingSettings] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<{
@@ -201,6 +203,8 @@ export default function AdminDashboard() {
         if (s.key === "home_banner_description") setBannerDesc(typeof s.value === "string" ? s.value : "");
         if (s.key === "home_banner_image") setBannerImage(typeof s.value === "string" ? s.value : "");
         if (s.key === "site_logo") setSiteLogo(typeof s.value === "string" ? s.value : "");
+        if (s.key === "site_name") setSiteName(typeof s.value === "string" ? s.value : "");
+        if (s.key === "site_favicon") setSiteFavicon(typeof s.value === "string" ? s.value : "");
         if (s.key === "offers") setOffers(Array.isArray(s.value) ? s.value as any : []);
         if (s.key === "payment_methods" && typeof s.value === "object" && s.value !== null) {
           const v = s.value as any;
@@ -395,6 +399,20 @@ export default function AdminDashboard() {
       supabase.from("site_settings").update({ value: siteLogo } as any).eq("key", "site_logo"),
       supabase.from("site_settings").update({ value: offers } as any).eq("key", "offers"),
     ];
+    // Upsert site_name
+    const { data: existingSN } = await supabase.from("site_settings").select("id").eq("key", "site_name").maybeSingle();
+    if (existingSN) {
+      updates.push(supabase.from("site_settings").update({ value: siteName } as any).eq("key", "site_name"));
+    } else {
+      updates.push(supabase.from("site_settings").insert({ key: "site_name", value: siteName } as any) as any);
+    }
+    // Upsert site_favicon
+    const { data: existingSF } = await supabase.from("site_settings").select("id").eq("key", "site_favicon").maybeSingle();
+    if (existingSF) {
+      updates.push(supabase.from("site_settings").update({ value: siteFavicon } as any).eq("key", "site_favicon"));
+    } else {
+      updates.push(supabase.from("site_settings").insert({ key: "site_favicon", value: siteFavicon } as any) as any);
+    }
     // Upsert payment_methods
     const { data: existingPM } = await supabase.from("site_settings").select("id").eq("key", "payment_methods").maybeSingle();
     if (existingPM) {
@@ -934,6 +952,37 @@ export default function AdminDashboard() {
               {/* التصميم */}
               {settingsSubTab === "design" && (
                 <div className="space-y-6">
+                  {/* Site Name */}
+                  <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                    <h3 className="font-semibold text-sm">اسم المنصة</h3>
+                    <p className="text-[10px] text-muted-foreground">سيظهر في عنوان الصفحة والهيدر عند عدم وجود لوجو</p>
+                    <Input value={siteName} onChange={e => setSiteName(e.target.value)} placeholder="اسم المنصة" />
+                  </div>
+
+                  {/* Favicon */}
+                  <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                    <h3 className="font-semibold text-sm">أيقونة المنصة (Favicon)</h3>
+                    <p className="text-[10px] text-muted-foreground">الحجم المقترح: 32×32 أو 64×64 بكسل — بصيغة PNG أو ICO</p>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors">
+                        <ImagePlus className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">اختر أيقونة</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const url = await uploadImage(file, "favicons");
+                          if (url) setSiteFavicon(url);
+                        }} />
+                      </label>
+                      {siteFavicon && (
+                        <div className="relative">
+                          <img src={siteFavicon} alt="Favicon" className="h-8 w-8 object-contain rounded bg-muted p-0.5" />
+                          <button onClick={() => setSiteFavicon("")} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-4 w-4 flex items-center justify-center text-[10px]">×</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Logo Settings */}
                   <div className="bg-card rounded-xl p-4 border border-border space-y-3">
                     <h3 className="font-semibold text-sm">لوجو الموقع</h3>
