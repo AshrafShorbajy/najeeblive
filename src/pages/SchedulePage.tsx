@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Video, Clock, CheckCircle, User, MessageCircle, Send, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export default function SchedulePage() {
   const { user, isTeacher } = useAuthContext();
@@ -170,81 +171,95 @@ export default function SchedulePage() {
     <AppLayout>
       <div className="px-4 py-6">
         <h1 className="text-2xl font-bold mb-6">جدولي</h1>
-        {bookings.length === 0 ? (
-          <p className="text-center text-muted-foreground py-12">لا توجد حصص محجوزة</p>
-        ) : (
-          <div className="space-y-3">
-            {bookings.map((b) => (
-              <div key={b.id} className="bg-card rounded-xl p-4 border border-border">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">{(b as any).lessons?.title ?? "حصة"}</h3>
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColor(b.status)}`}>
-                    {statusLabel(b.status)}
-                  </span>
-                </div>
-                {b.student_id === user?.id && b.teacher_name && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                    <User className="h-4 w-4" />
-                    <span>المعلم: {b.teacher_name}</span>
+        <Tabs defaultValue="scheduled" dir="rtl">
+          <TabsList className="w-full grid grid-cols-4 mb-4">
+            <TabsTrigger value="scheduled">مجدول</TabsTrigger>
+            <TabsTrigger value="accepted">مقبول</TabsTrigger>
+            <TabsTrigger value="pending">في الانتظار</TabsTrigger>
+            <TabsTrigger value="completed">مكتمل</TabsTrigger>
+          </TabsList>
+          {["scheduled", "accepted", "pending", "completed"].map((status) => {
+            const filtered = bookings.filter((b) => b.status === status);
+            return (
+              <TabsContent key={status} value={status}>
+                {filtered.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-12">لا توجد حصص</p>
+                ) : (
+                  <div className="space-y-3">
+                    {filtered.map((b) => (
+                      <div key={b.id} className="bg-card rounded-xl p-4 border border-border">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-semibold">{(b as any).lessons?.title ?? "حصة"}</h3>
+                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColor(b.status)}`}>
+                            {statusLabel(b.status)}
+                          </span>
+                        </div>
+                        {b.student_id === user?.id && b.teacher_name && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                            <User className="h-4 w-4" />
+                            <span>المعلم: {b.teacher_name}</span>
+                          </div>
+                        )}
+                        {b.scheduled_at && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                            <Clock className="h-4 w-4" />
+                            <span>{new Date(b.scheduled_at).toLocaleString("ar")}</span>
+                          </div>
+                        )}
+                        {b.status === "scheduled" && b.teacher_id === user?.id && isTeacher && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full mb-2 text-success border-success/30 hover:bg-success/10"
+                            onClick={async () => {
+                              const { error } = await supabase.from("bookings").update({
+                                status: "completed",
+                                zoom_join_url: null,
+                                zoom_start_url: null,
+                                zoom_meeting_id: null,
+                              }).eq("id", b.id);
+                              if (error) toast.error("خطأ في تحديث الحالة");
+                              else {
+                                toast.success("تم إنهاء الحصة بنجاح");
+                                setBookings(prev => prev.map(item => item.id === b.id ? { ...item, status: "completed", zoom_join_url: null, zoom_start_url: null, zoom_meeting_id: null } : item));
+                              }
+                            }}
+                          >
+                            <CheckCircle className="h-4 w-4 ml-2" />
+                            إنهاء الحصة
+                          </Button>
+                        )}
+                        {b.status === "scheduled" && (b.zoom_join_url || b.zoom_start_url) && (
+                          <a
+                            href={b.teacher_id === user?.id ? (b.zoom_start_url ?? b.zoom_join_url) : b.zoom_join_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Button size="sm" variant="hero" className="w-full mb-2">
+                              <Video className="h-4 w-4 ml-2" />
+                              {b.teacher_id === user?.id ? "بدء الحصة (زوم)" : "دخول الحصة عبر زوم"}
+                            </Button>
+                          </a>
+                        )}
+                        {b.student_id === user?.id && (b.status === "accepted" || b.status === "scheduled" || b.status === "completed") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => openChat(b)}
+                          >
+                            <MessageCircle className="h-4 w-4 ml-2" />
+                            {b.status === "completed" ? "عرض المحادثة" : "مراسلة المعلم"}
+                          </Button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
-                {b.scheduled_at && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                    <Clock className="h-4 w-4" />
-                    <span>{new Date(b.scheduled_at).toLocaleString("ar")}</span>
-                  </div>
-                )}
-                {b.status === "scheduled" && b.teacher_id === user?.id && isTeacher && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full mb-2 text-success border-success/30 hover:bg-success/10"
-                    onClick={async () => {
-                      const { error } = await supabase.from("bookings").update({
-                        status: "completed",
-                        zoom_join_url: null,
-                        zoom_start_url: null,
-                        zoom_meeting_id: null,
-                      }).eq("id", b.id);
-                      if (error) toast.error("خطأ في تحديث الحالة");
-                      else {
-                        toast.success("تم إنهاء الحصة بنجاح");
-                        setBookings(prev => prev.map(item => item.id === b.id ? { ...item, status: "completed", zoom_join_url: null, zoom_start_url: null, zoom_meeting_id: null } : item));
-                      }
-                    }}
-                  >
-                    <CheckCircle className="h-4 w-4 ml-2" />
-                    إنهاء الحصة
-                  </Button>
-                )}
-                {b.status === "scheduled" && (b.zoom_join_url || b.zoom_start_url) && (
-                  <a
-                    href={b.teacher_id === user?.id ? (b.zoom_start_url ?? b.zoom_join_url) : b.zoom_join_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Button size="sm" variant="hero" className="w-full mb-2">
-                      <Video className="h-4 w-4 ml-2" />
-                      {b.teacher_id === user?.id ? "بدء الحصة (زوم)" : "دخول الحصة عبر زوم"}
-                    </Button>
-                  </a>
-                )}
-                {/* Chat button for student on accepted/scheduled/completed bookings */}
-                {b.student_id === user?.id && (b.status === "accepted" || b.status === "scheduled" || b.status === "completed") && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => openChat(b)}
-                  >
-                    <MessageCircle className="h-4 w-4 ml-2" />
-                    {b.status === "completed" ? "عرض المحادثة" : "مراسلة المعلم"}
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+              </TabsContent>
+            );
+          })}
+        </Tabs>
       </div>
     </AppLayout>
   );
