@@ -388,7 +388,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background dashboard-large-text">
       <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-md border-b border-border">
         <div className="container flex items-center justify-between h-14">
           <h1 className="text-lg font-bold text-primary">
