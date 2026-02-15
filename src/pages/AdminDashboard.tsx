@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench, ImagePlus, Globe } from "lucide-react";
+import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench, ImagePlus, Globe, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
@@ -413,47 +414,142 @@ export default function AdminDashboard() {
         )}
 
         <Tabs defaultValue="curricula" value={adminActiveTab} onValueChange={(v) => { setAdminActiveTab(v); setAdminViewedTabs(prev => new Set(prev).add(v)); }}>
-          <TabsList className="w-full flex-wrap h-auto gap-1">
-            <TabsTrigger value="students">الطلاب</TabsTrigger>
-            <TabsTrigger value="teachers">المعلمين</TabsTrigger>
-            <TabsTrigger value="curricula">المناهج</TabsTrigger>
-            <TabsTrigger value="grades">الصفوف</TabsTrigger>
-            <TabsTrigger value="subjects">المواد</TabsTrigger>
-            <TabsTrigger value="announcements">الإعلانات</TabsTrigger>
-            {isAdmin && (
-              <TabsTrigger value="invoices" className="relative overflow-visible">
-                الفواتير
-                {!adminViewedTabs.has("invoices") && pendingInvoicesCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
-                    {pendingInvoicesCount > 99 ? "99+" : pendingInvoicesCount}
-                  </span>
+          <div className="flex flex-wrap gap-2 bg-muted p-2 rounded-lg">
+            {/* تار الدراسة */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={["curricula", "grades", "subjects", "skills"].includes(adminActiveTab) ? "default" : "ghost"}
+                  size="sm"
+                  className="gap-1"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  تار الدراسة
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[140px]">
+                <DropdownMenuItem onClick={() => { setAdminActiveTab("curricula"); setAdminViewedTabs(prev => new Set(prev).add("curricula")); }}>
+                  المناهج
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setAdminActiveTab("subjects"); setAdminViewedTabs(prev => new Set(prev).add("subjects")); }}>
+                  المواد
+                </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => { setAdminActiveTab("skills"); setAdminViewedTabs(prev => new Set(prev).add("skills")); }}>
+                    مهارات
+                  </DropdownMenuItem>
                 )}
-              </TabsTrigger>
-            )}
+                <DropdownMenuItem onClick={() => { setAdminActiveTab("grades"); setAdminViewedTabs(prev => new Set(prev).add("grades")); }}>
+                  الصفوف
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* المستخدمين */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={["students", "teachers"].includes(adminActiveTab) ? "default" : "ghost"}
+                  size="sm"
+                  className="gap-1"
+                >
+                  <Users className="h-4 w-4" />
+                  المستخدمين
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[140px]">
+                <DropdownMenuItem onClick={() => { setAdminActiveTab("teachers"); setAdminViewedTabs(prev => new Set(prev).add("teachers")); }}>
+                  المعلمين
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setAdminActiveTab("students"); setAdminViewedTabs(prev => new Set(prev).add("students")); }}>
+                  الطلاب
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* المحاسبة */}
             {isAdmin && (
-              <TabsTrigger value="orders" className="relative overflow-visible">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant={["withdrawals", "invoices", "accounting"].includes(adminActiveTab) ? "default" : "ghost"}
+                    size="sm"
+                    className="gap-1 relative"
+                  >
+                    <DollarSign className="h-4 w-4" />
+                    المحاسبة
+                    <ChevronDown className="h-3 w-3" />
+                    {((!adminViewedTabs.has("invoices") && pendingInvoicesCount > 0) || (!adminViewedTabs.has("withdrawals") && pendingWithdrawalsCount > 0)) && (
+                      <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                        {(pendingInvoicesCount || 0) + (pendingWithdrawalsCount || 0)}
+                      </span>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[140px]">
+                  <DropdownMenuItem onClick={() => { setAdminActiveTab("invoices"); setAdminViewedTabs(prev => new Set(prev).add("invoices")); }} className="relative">
+                    الفواتير
+                    {pendingInvoicesCount > 0 && (
+                      <span className="mr-auto bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                        {pendingInvoicesCount}
+                      </span>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setAdminActiveTab("withdrawals"); setAdminViewedTabs(prev => new Set(prev).add("withdrawals")); }} className="relative">
+                    طلبات السحب
+                    {pendingWithdrawalsCount > 0 && (
+                      <span className="mr-auto bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                        {pendingWithdrawalsCount}
+                      </span>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setAdminActiveTab("accounting"); setAdminViewedTabs(prev => new Set(prev).add("accounting")); }}>
+                    سجلات المحاسبة
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Standalone tabs */}
+            <Button
+              variant={adminActiveTab === "announcements" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => { setAdminActiveTab("announcements"); setAdminViewedTabs(prev => new Set(prev).add("announcements")); }}
+            >
+              <Megaphone className="h-4 w-4 ml-1" />
+              الإعلانات
+            </Button>
+
+            {isAdmin && (
+              <Button
+                variant={adminActiveTab === "orders" ? "default" : "ghost"}
+                size="sm"
+                className="relative"
+                onClick={() => { setAdminActiveTab("orders"); setAdminViewedTabs(prev => new Set(prev).add("orders")); }}
+              >
+                <BookOpen className="h-4 w-4 ml-1" />
                 الطلبات
                 {!adminViewedTabs.has("orders") && pendingOrdersCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
-                    {pendingOrdersCount > 99 ? "99+" : pendingOrdersCount}
+                    {pendingOrdersCount}
                   </span>
                 )}
-              </TabsTrigger>
+              </Button>
             )}
-            {isAdmin && <TabsTrigger value="skills">مهارات</TabsTrigger>}
+
             {isAdmin && (
-              <TabsTrigger value="withdrawals" className="relative overflow-visible">
-                طلبات السحب
-                {!adminViewedTabs.has("withdrawals") && pendingWithdrawalsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
-                    {pendingWithdrawalsCount > 99 ? "99+" : pendingWithdrawalsCount}
-                  </span>
-                )}
-              </TabsTrigger>
+              <Button
+                variant={adminActiveTab === "site-settings" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => { setAdminActiveTab("site-settings"); setAdminViewedTabs(prev => new Set(prev).add("site-settings")); }}
+              >
+                <Settings className="h-4 w-4 ml-1" />
+                إعدادات الموقع
+              </Button>
             )}
-            {isAdmin && <TabsTrigger value="accounting">المحاسبة</TabsTrigger>}
-            {isAdmin && <TabsTrigger value="site-settings">إعدادات الموقع</TabsTrigger>}
-          </TabsList>
+          </div>
 
           <TabsContent value="students" className="mt-4 space-y-4">
             <div className="relative">
