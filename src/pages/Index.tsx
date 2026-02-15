@@ -3,21 +3,37 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AnnouncementBanner } from "@/components/home/AnnouncementBanner";
 import { LessonTypes } from "@/components/home/LessonTypes";
 import { OffersSection } from "@/components/home/OffersSection";
+import { PromoBanners } from "@/components/home/PromoBanners";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { Wrench } from "lucide-react";
 
+const DEFAULT_SECTIONS_ORDER = ["announcements", "promo_banners", "lesson_types", "offers"];
+
+const SECTION_COMPONENTS: Record<string, React.FC> = {
+  announcements: AnnouncementBanner,
+  promo_banners: PromoBanners,
+  lesson_types: LessonTypes,
+  offers: OffersSection,
+};
+
 const Index = () => {
   const [maintenance, setMaintenance] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [sectionsOrder, setSectionsOrder] = useState<string[]>(DEFAULT_SECTIONS_ORDER);
   const { isAdmin } = useAuthContext();
 
   useEffect(() => {
-    supabase.from("site_settings").select("value").eq("key", "maintenance_mode").single()
-      .then(({ data }) => {
-        if (data && data.value === true) setMaintenance(true);
-        setLoading(false);
-      });
+    Promise.all([
+      supabase.from("site_settings").select("value").eq("key", "maintenance_mode").single(),
+      supabase.from("site_settings").select("value").eq("key", "homepage_sections_order").single(),
+    ]).then(([maintRes, orderRes]) => {
+      if (maintRes.data && maintRes.data.value === true) setMaintenance(true);
+      if (orderRes.data && Array.isArray(orderRes.data.value) && orderRes.data.value.length > 0) {
+        setSectionsOrder(orderRes.data.value as string[]);
+      }
+      setLoading(false);
+    });
   }, []);
 
   if (loading) {
@@ -46,9 +62,10 @@ const Index = () => {
           الموقع في وضع الصيانة - مرئي لك فقط كأدمن
         </div>
       )}
-      <AnnouncementBanner />
-      <LessonTypes />
-      <OffersSection />
+      {sectionsOrder.map((sectionId) => {
+        const Component = SECTION_COMPONENTS[sectionId];
+        return Component ? <Component key={sectionId} /> : null;
+      })}
     </AppLayout>
   );
 };
