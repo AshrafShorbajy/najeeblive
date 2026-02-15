@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 export default function LessonDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -63,6 +64,51 @@ export default function LessonDetailPage() {
       });
   }, [id, user]);
 
+  const handlePayPalSuccess = async (orderData: any) => {
+    if (!user || !lesson) return;
+    setBuying(true);
+
+    // Create booking as accepted directly (no admin approval needed)
+    const { data: bookingData, error } = await supabase.from("bookings").insert({
+      student_id: user.id,
+      lesson_id: lesson.id,
+      teacher_id: lesson.teacher_id,
+      amount: lesson.price,
+      payment_method: "paypal" as any,
+      status: "accepted",
+    }).select().single();
+
+    if (error || !bookingData) {
+      toast.error("حدث خطأ في الحجز");
+      setBuying(false);
+      return;
+    }
+
+    // Auto-create invoice as paid
+    await supabase.from("invoices").insert({
+      booking_id: bookingData.id,
+      student_id: user.id,
+      teacher_id: lesson.teacher_id,
+      lesson_id: lesson.id,
+      amount: lesson.price,
+      payment_method: "paypal",
+      status: "paid",
+    } as any);
+
+    // Auto-create conversation
+    await supabase.from("conversations").insert({
+      student_id: user.id,
+      teacher_id: lesson.teacher_id,
+      booking_id: bookingData.id,
+    });
+
+    toast.success("تم الدفع بنجاح! يمكنك الآن التواصل مع المعلم لتحديد موعد الحصة");
+    setBuyDialogOpen(false);
+    const { data } = await supabase.from("bookings").select("*").eq("lesson_id", id).eq("student_id", user.id);
+    setBookings(data ?? []);
+    setBuying(false);
+  };
+
   const handleBuy = async () => {
     if (!user || !lesson) {
       toast.error("يجب تسجيل الدخول أولاً");
@@ -105,7 +151,6 @@ export default function LessonDetailPage() {
     if (error || !bookingData) {
       toast.error("حدث خطأ في الحجز");
     } else {
-      // Auto-create invoice
       await supabase.from("invoices").insert({
         booking_id: bookingData.id,
         student_id: user.id,
@@ -238,10 +283,50 @@ export default function LessonDetailPage() {
                             </div>
                           )}
                         </RadioGroup>
-                        {paymentMethod === "paypal" && paymentSettings?.paypal?.email && (
-                          <div className="p-3 rounded-lg bg-muted text-sm space-y-1">
-                            <p className="font-medium">أرسل المبلغ إلى:</p>
-                            <p dir="ltr" className="text-primary font-mono">{paymentSettings.paypal.email}</p>
+                        {paymentMethod === "paypal" && paymentSettings?.paypal?.client_id && (
+                          <div className="space-y-3">
+                            <PayPalScriptProvider options={{
+                              clientId: paymentSettings.paypal.client_id,
+                              currency: "USD",
+                              intent: "capture",
+                              ...(paymentSettings.paypal.sandbox === false ? {} : {}),
+                            }} key={paymentSettings.paypal.sandbox ? "sandbox" : "live"}>
+                              <PayPalButtons
+                                style={{ layout: "vertical", shape: "rect", label: "pay" }}
+                                disabled={buying}
+                                createOrder={(_data, actions) => {
+                                  return actions.order.create({
+                                    intent: "CAPTURE",
+                                    purchase_units: [{
+                                      amount: {
+                                        value: String(lesson.price),
+                                        currency_code: "USD",
+                                      },
+                                      description: lesson.title,
+                                    }],
+                                  });
+                                }}
+                                onApprove={async (_data, actions) => {
+                                  const order = await actions.order?.capture();
+                                  if (order?.status === "COMPLETED") {
+                                    await handlePayPalSuccess(order);
+                                  } else {
+                                    toast.error("لم يتم إكمال الدفع");
+                                  }
+                                }}
+                                onError={() => {
+                                  toast.error("حدث خطأ في عملية الدفع");
+                                }}
+                              />
+                            </PayPalScriptProvider>
+                            {paymentSettings.paypal.sandbox && (
+                              <p className="text-[10px] text-center text-amber-600 bg-amber-50 rounded p-1">⚠️ وضع الاختبار (Sandbox)</p>
+                            )}
+                          </div>
+                        )}
+                        {paymentMethod === "paypal" && !paymentSettings?.paypal?.client_id && (
+                          <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground text-center">
+                            طريقة الدفع عبر PayPal غير مكتملة الإعداد حالياً
                           </div>
                         )}
                         {paymentMethod === "bank_transfer" && paymentSettings?.bank_transfer && (
@@ -267,9 +352,11 @@ export default function LessonDetailPage() {
                             </div>
                           </div>
                         )}
-                        <Button onClick={handleBuy} disabled={buying} className="w-full" variant="hero">
-                          {buying ? "جارٍ التحميل..." : "إتمام الشراء"}
-                        </Button>
+                        {paymentMethod === "bank_transfer" && (
+                          <Button onClick={handleBuy} disabled={buying} className="w-full" variant="hero">
+                            {buying ? "جارٍ التحميل..." : "إتمام الشراء"}
+                          </Button>
+                        )}
                       </div>
                     </DialogContent>
                   </Dialog>
