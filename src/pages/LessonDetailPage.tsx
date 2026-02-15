@@ -57,8 +57,22 @@ export default function LessonDetailPage() {
         }
       });
 
-    supabase.from("reviews").select("*, profiles:student_id(full_name)").eq("lesson_id", id)
-      .then(({ data }) => setReviews(data ?? []));
+    supabase.from("reviews").select("*").eq("lesson_id", id)
+      .then(async ({ data: reviewsData }) => {
+        if (reviewsData && reviewsData.length > 0) {
+          const studentIds = [...new Set(reviewsData.map(r => r.student_id))];
+          const { data: profilesData } = await supabase
+            .from("profiles")
+            .select("user_id, full_name")
+            .in("user_id", studentIds);
+          const profileMap: Record<string, string> = {};
+          profilesData?.forEach(p => { profileMap[p.user_id] = p.full_name; });
+          const enriched = reviewsData.map(r => ({ ...r, reviewer_name: profileMap[r.student_id] || "" }));
+          setReviews(enriched);
+        } else {
+          setReviews([]);
+        }
+      });
 
     if (user) {
       supabase.from("bookings").select("*").eq("lesson_id", id).eq("student_id", user.id)
@@ -202,8 +216,14 @@ export default function LessonDetailPage() {
     } else {
       toast.success("شكراً لتقييمك!");
       setReviewComment("");
-      const { data } = await supabase.from("reviews").select("*, profiles:student_id(full_name)").eq("lesson_id", id);
-      setReviews(data ?? []);
+      const { data } = await supabase.from("reviews").select("*").eq("lesson_id", id);
+      if (data) {
+        const studentIds = [...new Set(data.map(r => r.student_id))];
+        const { data: profilesData } = await supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds);
+        const profileMap: Record<string, string> = {};
+        profilesData?.forEach(p => { profileMap[p.user_id] = p.full_name; });
+        setReviews(data.map(r => ({ ...r, reviewer_name: profileMap[r.student_id] || "" })));
+      }
     }
   };
 
@@ -503,7 +523,7 @@ export default function LessonDetailPage() {
                             <Star key={i} className={`h-3 w-3 ${i < r.rating ? "text-warning fill-current" : "text-muted"}`} />
                           ))}
                         </div>
-                        <span className="text-xs text-muted-foreground">{(r as any).profiles?.full_name}</span>
+                        <span className="text-xs text-muted-foreground">{(r as any).reviewer_name}</span>
                       </div>
                       {r.comment && <p className="text-sm text-muted-foreground">{r.comment}</p>}
                     </div>
