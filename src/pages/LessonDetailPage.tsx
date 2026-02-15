@@ -327,6 +327,9 @@ export default function LessonDetailPage() {
                                       amount: { value: String(lesson.price), currency_code: "USD" },
                                       description: lesson.title,
                                     }],
+                                    application_context: {
+                                      shipping_preference: "NO_SHIPPING",
+                                    },
                                   });
                                 }}
                                 onApprove={async (_data: any, actions: any) => {
