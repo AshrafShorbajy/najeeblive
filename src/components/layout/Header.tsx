@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { User, Heart, LayoutDashboard } from "lucide-react";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "./NotificationBell";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -38,6 +39,7 @@ export function Header() {
                   </Button>
                 </Link>
               )}
+              <NotificationBell />
               <Link to="/favorites">
                 <Button variant="ghost" size="icon">
                   <Heart className="h-5 w-5" />
