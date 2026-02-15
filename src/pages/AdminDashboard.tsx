@@ -56,10 +56,10 @@ export default function AdminDashboard() {
   const [offers, setOffers] = useState<{title: string; description: string; image_url?: string}[]>([]);
   const [savingSettings, setSavingSettings] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<{
-    paypal: { enabled: boolean; email: string };
+    paypal: { enabled: boolean; email: string; client_id: string; sandbox: boolean };
     bank_transfer: { enabled: boolean; account_number: string; account_holder: string; branch: string; bank_logo_url: string };
   }>({
-    paypal: { enabled: true, email: "" },
+    paypal: { enabled: true, email: "", client_id: "", sandbox: true },
     bank_transfer: { enabled: true, account_number: "", account_holder: "", branch: "", bank_logo_url: "" },
   });
   const [activeCurrency, setActiveCurrency] = useState("USD");
@@ -813,15 +813,36 @@ export default function AdminDashboard() {
                     />
                   </div>
                   {paymentMethods.paypal.enabled && (
-                    <div>
-                      <Label className="text-xs">بريد استقبال المبالغ (PayPal Email)</Label>
-                      <Input
-                        dir="ltr"
-                        type="email"
-                        placeholder="payment@example.com"
-                        value={paymentMethods.paypal.email}
-                        onChange={e => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, email: e.target.value } }))}
-                      />
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-xs">بريد استقبال المبالغ (PayPal Email)</Label>
+                        <Input
+                          dir="ltr"
+                          type="email"
+                          placeholder="payment@example.com"
+                          value={paymentMethods.paypal.email}
+                          onChange={e => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, email: e.target.value } }))}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">PayPal Client ID</Label>
+                        <Input
+                          dir="ltr"
+                          placeholder="Client ID من لوحة PayPal Developer"
+                          value={paymentMethods.paypal.client_id || ""}
+                          onChange={e => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, client_id: e.target.value } }))}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between border border-border rounded-lg p-3">
+                        <div>
+                          <h4 className="font-medium text-xs">وضع الساند بوكس (Sandbox)</h4>
+                          <p className="text-[10px] text-muted-foreground">تفعيل وضع الاختبار — استخدم بيانات ساند بوكس من PayPal Developer</p>
+                        </div>
+                        <Switch
+                          checked={paymentMethods.paypal.sandbox ?? true}
+                          onCheckedChange={(v) => setPaymentMethods(prev => ({ ...prev, paypal: { ...prev.paypal, sandbox: v } }))}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
