@@ -42,6 +42,21 @@ export default function SchedulePage() {
       setBookings(items.map(b => ({ ...b, teacher_name: teacherMap[b.teacher_id] || "" })));
     };
     loadBookings();
+
+    // Realtime: auto-update when booking recording_url changes
+    const channel = supabase
+      .channel("bookings-recordings")
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "bookings",
+      }, (payload) => {
+        const updated = payload.new as any;
+        setBookings(prev => prev.map(b => b.id === updated.id ? { ...b, ...updated } : b));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   // Upload recording handler (teacher only)
