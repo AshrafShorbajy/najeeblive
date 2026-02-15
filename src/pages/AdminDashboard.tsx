@@ -69,10 +69,13 @@ export default function AdminDashboard() {
   const [commissionRate, setCommissionRate] = useState("20");
   const [accountingRecords, setAccountingRecords] = useState<any[]>([]);
   const [accountingProfiles, setAccountingProfiles] = useState<Record<string, any>>({});
+  const [contactInfo, setContactInfo] = useState<{ email: string; phone: string; whatsapp: string }>({ email: "", phone: "", whatsapp: "" });
+  const [promoBanners, setPromoBanners] = useState<{ title: string; description: string; image_url?: string }[]>([]);
+  const [homepageSectionsOrder, setHomepageSectionsOrder] = useState<string[]>(["announcements", "promo_banners", "lesson_types", "offers"]);
 
   // Badge counters
   const [adminActiveTab, setAdminActiveTab] = useState("curricula");
-  const [settingsSubTab, setSettingsSubTab] = useState<"design" | "payment" | "currency" | "commission" | "maintenance">("design");
+  const [settingsSubTab, setSettingsSubTab] = useState<"design" | "payment" | "currency" | "commission" | "maintenance" | "contact" | "homepage">("design");
   const [adminViewedTabs, setAdminViewedTabs] = useState<Set<string>>(new Set(["curricula"]));
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [pendingInvoicesCount, setPendingInvoicesCount] = useState(0);
@@ -213,6 +216,16 @@ export default function AdminDashboard() {
         }
         if (s.key === "commission_rate" && typeof s.value === "number") {
           setCommissionRate(String(s.value));
+        }
+        if (s.key === "contact_info" && typeof s.value === "object" && s.value !== null) {
+          const v = s.value as any;
+          setContactInfo({ email: v.email || "", phone: v.phone || "", whatsapp: v.whatsapp || "" });
+        }
+        if (s.key === "promo_banners" && Array.isArray(s.value)) {
+          setPromoBanners(s.value as any);
+        }
+        if (s.key === "homepage_sections_order" && Array.isArray(s.value)) {
+          setHomepageSectionsOrder(s.value as any);
         }
       }
     }
@@ -404,6 +417,27 @@ export default function AdminDashboard() {
       updates.push(supabase.from("site_settings").update({ value: commissionValue } as any).eq("key", "commission_rate"));
     } else {
       updates.push(supabase.from("site_settings").insert({ key: "commission_rate", value: commissionValue } as any) as any);
+    }
+    // Upsert contact_info
+    const { data: existingContact } = await supabase.from("site_settings").select("id").eq("key", "contact_info").maybeSingle();
+    if (existingContact) {
+      updates.push(supabase.from("site_settings").update({ value: contactInfo } as any).eq("key", "contact_info"));
+    } else {
+      updates.push(supabase.from("site_settings").insert({ key: "contact_info", value: contactInfo } as any) as any);
+    }
+    // Upsert promo_banners
+    const { data: existingPromo } = await supabase.from("site_settings").select("id").eq("key", "promo_banners").maybeSingle();
+    if (existingPromo) {
+      updates.push(supabase.from("site_settings").update({ value: promoBanners } as any).eq("key", "promo_banners"));
+    } else {
+      updates.push(supabase.from("site_settings").insert({ key: "promo_banners", value: promoBanners } as any) as any);
+    }
+    // Upsert homepage_sections_order
+    const { data: existingOrder } = await supabase.from("site_settings").select("id").eq("key", "homepage_sections_order").maybeSingle();
+    if (existingOrder) {
+      updates.push(supabase.from("site_settings").update({ value: homepageSectionsOrder } as any).eq("key", "homepage_sections_order"));
+    } else {
+      updates.push(supabase.from("site_settings").insert({ key: "homepage_sections_order", value: homepageSectionsOrder } as any) as any);
     }
     const results = await Promise.all(updates);
     const hasError = results.some(r => r.error);
@@ -866,6 +900,8 @@ export default function AdminDashboard() {
                       {settingsSubTab === "currency" && "عملة الموقع"}
                       {settingsSubTab === "commission" && "نسبة العمولة"}
                       {settingsSubTab === "maintenance" && "إغلاق الموقع"}
+                      {settingsSubTab === "contact" && "تواصل معنا"}
+                      {settingsSubTab === "homepage" && "ترتيب الصفحة الرئيسية"}
                     </span>
                     <ChevronDown className="h-3 w-3" />
                   </Button>
@@ -885,6 +921,12 @@ export default function AdminDashboard() {
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setSettingsSubTab("maintenance")}>
                     <ShieldOff className="h-4 w-4 ml-1" /> إغلاق الموقع
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSettingsSubTab("contact")}>
+                    <Mail className="h-4 w-4 ml-1" /> تواصل معنا
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSettingsSubTab("homepage")}>
+                    <Eye className="h-4 w-4 ml-1" /> ترتيب الصفحة الرئيسية
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -968,6 +1010,48 @@ export default function AdminDashboard() {
                             <div className="relative">
                               <img src={offer.image_url} alt="" className="h-10 w-16 object-cover rounded" />
                               <button onClick={() => { const u = [...offers]; u[i] = { ...u[i], image_url: "" }; setOffers(u); }} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-3.5 w-3.5 flex items-center justify-center text-[8px]">×</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Promo Banners */}
+                  <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-sm">بانرات الترويج</h3>
+                      <Button size="sm" variant="outline" onClick={() => setPromoBanners([...promoBanners, { title: "", description: "", image_url: "" }])}>
+                        <Plus className="h-4 w-4 ml-1" />إضافة بانر
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">بانرات عرضية تظهر في الصفحة الرئيسية — يمكنك إضافة العدد الذي تريده</p>
+                    {promoBanners.map((banner, i) => (
+                      <div key={i} className="border border-border rounded-lg p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">بانر {i + 1}</span>
+                          <Button size="icon" variant="ghost" onClick={() => setPromoBanners(promoBanners.filter((_, idx) => idx !== i))}>
+                            <Trash2 className="h-3 w-3 text-destructive" />
+                          </Button>
+                        </div>
+                        <Input placeholder="عنوان البانر" value={banner.title} onChange={e => { const u = [...promoBanners]; u[i] = { ...u[i], title: e.target.value }; setPromoBanners(u); }} />
+                        <Input placeholder="وصف البانر" value={banner.description} onChange={e => { const u = [...promoBanners]; u[i] = { ...u[i], description: e.target.value }; setPromoBanners(u); }} />
+                        <p className="text-[10px] text-muted-foreground">الحجم المقترح: 1200×400 بكسل (نسبة 3:1)</p>
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors">
+                            <ImagePlus className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-[10px] text-muted-foreground">صورة</span>
+                            <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const url = await uploadImage(file, "promo-banners");
+                              if (url) { const u = [...promoBanners]; u[i] = { ...u[i], image_url: url }; setPromoBanners(u); }
+                            }} />
+                          </label>
+                          {banner.image_url && (
+                            <div className="relative">
+                              <img src={banner.image_url} alt="" className="h-10 w-20 object-cover rounded" />
+                              <button onClick={() => { const u = [...promoBanners]; u[i] = { ...u[i], image_url: "" }; setPromoBanners(u); }} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full h-3.5 w-3.5 flex items-center justify-center text-[8px]">×</button>
                             </div>
                           )}
                         </div>
@@ -1155,6 +1239,71 @@ export default function AdminDashboard() {
                       الموقع مغلق حالياً - الزوار يرون صفحة الصيانة
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* تواصل معنا */}
+              {settingsSubTab === "contact" && (
+                <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-primary" />
+                    بيانات التواصل
+                  </h3>
+                  <p className="text-xs text-muted-foreground">هذه البيانات ستظهر في صفحة "تواصل معنا" في الملف الشخصي</p>
+                  <div>
+                    <Label className="text-xs">البريد الإلكتروني</Label>
+                    <Input dir="ltr" type="email" placeholder="support@example.com" value={contactInfo.email} onChange={e => setContactInfo(prev => ({ ...prev, email: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">رقم الهاتف</Label>
+                    <Input dir="ltr" placeholder="+249 123 456 789" value={contactInfo.phone} onChange={e => setContactInfo(prev => ({ ...prev, phone: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">رقم الواتساب</Label>
+                    <Input dir="ltr" placeholder="+249123456789" value={contactInfo.whatsapp} onChange={e => setContactInfo(prev => ({ ...prev, whatsapp: e.target.value }))} />
+                  </div>
+                </div>
+              )}
+
+              {/* ترتيب الصفحة الرئيسية */}
+              {settingsSubTab === "homepage" && (
+                <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-primary" />
+                    ترتيب أقسام الصفحة الرئيسية
+                  </h3>
+                  <p className="text-xs text-muted-foreground">استخدم الأسهم لتغيير ترتيب الأقسام في الصفحة الرئيسية</p>
+                  <div className="space-y-2">
+                    {homepageSectionsOrder.map((sectionId, index) => {
+                      const sectionNames: Record<string, string> = {
+                        announcements: "الإعلانات والبانر الرئيسي",
+                        promo_banners: "بانرات الترويج",
+                        lesson_types: "أنواع الدروس",
+                        offers: "العروض والخصومات",
+                      };
+                      return (
+                        <div key={sectionId} className="flex items-center gap-2 p-3 border border-border rounded-lg bg-muted/30">
+                          <span className="text-sm font-medium flex-1">{sectionNames[sectionId] || sectionId}</span>
+                          <div className="flex gap-1">
+                            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={index === 0} onClick={() => {
+                              const newOrder = [...homepageSectionsOrder];
+                              [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+                              setHomepageSectionsOrder(newOrder);
+                            }}>
+                              <ChevronDown className="h-3 w-3 rotate-180" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={index === homepageSectionsOrder.length - 1} onClick={() => {
+                              const newOrder = [...homepageSectionsOrder];
+                              [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+                              setHomepageSectionsOrder(newOrder);
+                            }}>
+                              <ChevronDown className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

@@ -31,6 +31,7 @@ export default function ProfilePage() {
   const [gradeLevels, setGradeLevels] = useState<any[]>([]);
   const [selectedCurriculum, setSelectedCurriculum] = useState("");
   const [selectedGrade, setSelectedGrade] = useState("");
+  const [contactInfo, setContactInfo] = useState<{ email: string; phone: string; whatsapp: string }>({ email: "", phone: "", whatsapp: "" });
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
@@ -56,6 +57,16 @@ export default function ProfilePage() {
       supabase.from("curricula").select("*").then(({ data }) => setCurricula(data ?? []));
     }
   }, [isStudent]);
+
+  useEffect(() => {
+    supabase.from("site_settings").select("value").eq("key", "contact_info").single()
+      .then(({ data }) => {
+        if (data && typeof data.value === "object" && data.value !== null) {
+          const v = data.value as any;
+          setContactInfo({ email: v.email || "", phone: v.phone || "", whatsapp: v.whatsapp || "" });
+        }
+      });
+  }, []);
 
   useEffect(() => {
     if (selectedCurriculum) {
@@ -212,20 +223,36 @@ export default function ProfilePage() {
               <h2 className="font-bold">تواصل معنا</h2>
               <p className="text-sm text-muted-foreground">يمكنك التواصل معنا عبر الوسائل التالية:</p>
               <div className="space-y-3">
-                <a href="mailto:support@sudtutor.com" className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
-                  <span className="text-xl">📧</span>
-                  <div>
-                    <p className="font-medium text-sm">البريد الإلكتروني</p>
-                    <p className="text-xs text-muted-foreground" dir="ltr">support@sudtutor.com</p>
-                  </div>
-                </a>
-                <a href="https://wa.me/249123456789" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
-                  <span className="text-xl">💬</span>
-                  <div>
-                    <p className="font-medium text-sm">واتساب</p>
-                    <p className="text-xs text-muted-foreground" dir="ltr">+249 123 456 789</p>
-                  </div>
-                </a>
+                {contactInfo.email && (
+                  <a href={`mailto:${contactInfo.email}`} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                    <span className="text-xl">📧</span>
+                    <div>
+                      <p className="font-medium text-sm">البريد الإلكتروني</p>
+                      <p className="text-xs text-muted-foreground" dir="ltr">{contactInfo.email}</p>
+                    </div>
+                  </a>
+                )}
+                {contactInfo.phone && (
+                  <a href={`tel:${contactInfo.phone}`} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                    <span className="text-xl">📞</span>
+                    <div>
+                      <p className="font-medium text-sm">الهاتف</p>
+                      <p className="text-xs text-muted-foreground" dir="ltr">{contactInfo.phone}</p>
+                    </div>
+                  </a>
+                )}
+                {contactInfo.whatsapp && (
+                  <a href={`https://wa.me/${contactInfo.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                    <span className="text-xl">💬</span>
+                    <div>
+                      <p className="font-medium text-sm">واتساب</p>
+                      <p className="text-xs text-muted-foreground" dir="ltr">{contactInfo.whatsapp}</p>
+                    </div>
+                  </a>
+                )}
+                {!contactInfo.email && !contactInfo.phone && !contactInfo.whatsapp && (
+                  <p className="text-sm text-muted-foreground text-center py-4">لم يتم إضافة بيانات التواصل بعد</p>
+                )}
               </div>
             </div>
           </TabsContent>
