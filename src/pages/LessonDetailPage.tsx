@@ -292,6 +292,7 @@ export default function LessonDetailPage() {
                                 currency: "USD",
                                 intent: "capture",
                                 components: "buttons",
+                                dataNamespace: "paypal_sdk",
                               }}
                             >
                               <PayPalButtons
