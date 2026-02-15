@@ -106,6 +106,7 @@ export type Database = {
           notes: string | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           payment_receipt_url: string | null
+          recording_url: string | null
           scheduled_at: string | null
           status: Database["public"]["Enums"]["booking_status"]
           student_id: string
@@ -123,6 +124,7 @@ export type Database = {
           notes?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_receipt_url?: string | null
+          recording_url?: string | null
           scheduled_at?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           student_id: string
@@ -140,6 +142,7 @@ export type Database = {
           notes?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_receipt_url?: string | null
+          recording_url?: string | null
           scheduled_at?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           student_id?: string

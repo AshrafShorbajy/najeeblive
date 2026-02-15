@@ -2,3 +2,9 @@ project_id = "osclbwdiaulpswftonkz"
 
 [functions.send-push-notification]
 verify_jwt = false
+
+[functions.zoom-recording-webhook]
+verify_jwt = false
+
+[functions.create-zoom-meeting]
+verify_jwt = false

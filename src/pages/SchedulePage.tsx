@@ -4,7 +4,7 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Video, Clock, CheckCircle, User, MessageCircle, Send, ArrowRight } from "lucide-react";
+import { Video, Clock, CheckCircle, User, MessageCircle, Send, ArrowRight, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
@@ -238,6 +238,18 @@ export default function SchedulePage() {
                             <Button size="sm" variant="hero" className="w-full mb-2">
                               <Video className="h-4 w-4 ml-2" />
                               {b.teacher_id === user?.id ? "بدء الحصة (زوم)" : "دخول الحصة عبر زوم"}
+                            </Button>
+                          </a>
+                        )}
+                        {b.status === "completed" && b.recording_url && (
+                          <a
+                            href={b.recording_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Button size="sm" variant="outline" className="w-full mb-2 text-primary border-primary/30 hover:bg-primary/10">
+                              <PlayCircle className="h-4 w-4 ml-2" />
+                              مشاهدة تسجيل الحصة
                             </Button>
                           </a>
                         )}

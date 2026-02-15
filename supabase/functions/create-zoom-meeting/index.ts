@@ -56,6 +56,7 @@ serve(async (req) => {
           participant_video: true,
           join_before_host: false,
           waiting_room: true,
+          auto_recording: "cloud",
         },
       }),
     });
