@@ -13,7 +13,41 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
+import React from "react";
+
+class PayPalErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-3 rounded-lg bg-destructive/10 text-sm text-destructive text-center">
+          حدث خطأ في تحميل PayPal. تأكد من صحة Client ID.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const LazyPayPalButtons = React.lazy(() =>
+  import("@paypal/react-paypal-js").then((mod) => ({
+    default: mod.PayPalButtons,
+  }))
+);
+const LazyPayPalScriptProvider = React.lazy(() =>
+  import("@paypal/react-paypal-js").then((mod) => ({
+    default: mod.PayPalScriptProvider,
+  }))
+);
 
 export default function LessonDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -285,40 +319,49 @@ export default function LessonDetailPage() {
                         </RadioGroup>
                         {paymentMethod === "paypal" && paymentSettings?.paypal?.client_id && (
                           <div className="space-y-3">
-                            <PayPalScriptProvider options={{
-                              clientId: paymentSettings.paypal.client_id,
-                              currency: "USD",
-                              intent: "capture",
-                              ...(paymentSettings.paypal.sandbox === false ? {} : {}),
-                            }} key={paymentSettings.paypal.sandbox ? "sandbox" : "live"}>
-                              <PayPalButtons
-                                style={{ layout: "vertical", shape: "rect", label: "pay" }}
-                                disabled={buying}
-                                createOrder={(_data, actions) => {
-                                  return actions.order.create({
-                                    intent: "CAPTURE",
-                                    purchase_units: [{
-                                      amount: {
-                                        value: String(lesson.price),
-                                        currency_code: "USD",
-                                      },
-                                      description: lesson.title,
-                                    }],
-                                  });
-                                }}
-                                onApprove={async (_data, actions) => {
-                                  const order = await actions.order?.capture();
-                                  if (order?.status === "COMPLETED") {
-                                    await handlePayPalSuccess(order);
-                                  } else {
-                                    toast.error("لم يتم إكمال الدفع");
-                                  }
-                                }}
-                                onError={() => {
-                                  toast.error("حدث خطأ في عملية الدفع");
-                                }}
-                              />
-                            </PayPalScriptProvider>
+                            <PayPalErrorBoundary>
+                              <React.Suspense fallback={<div className="text-center text-sm text-muted-foreground py-4">جاري تحميل PayPal...</div>}>
+                                <LazyPayPalScriptProvider options={{
+                                  clientId: paymentSettings.paypal.client_id,
+                                  currency: "USD",
+                                  intent: "capture",
+                                }} key={paymentSettings.paypal.sandbox ? "sandbox" : "live"}>
+                                  <LazyPayPalButtons
+                                    style={{ layout: "vertical", shape: "rect", label: "pay" }}
+                                    disabled={buying}
+                                    createOrder={(_data: any, actions: any) => {
+                                      return actions.order.create({
+                                        intent: "CAPTURE",
+                                        purchase_units: [{
+                                          amount: {
+                                            value: String(lesson.price),
+                                            currency_code: "USD",
+                                          },
+                                          description: lesson.title,
+                                        }],
+                                      });
+                                    }}
+                                    onApprove={async (_data: any, actions: any) => {
+                                      try {
+                                        const order = await actions.order?.capture();
+                                        if (order?.status === "COMPLETED") {
+                                          await handlePayPalSuccess(order);
+                                        } else {
+                                          toast.error("لم يتم إكمال الدفع");
+                                        }
+                                      } catch (err) {
+                                        console.error("PayPal approve error:", err);
+                                        toast.error("حدث خطأ أثناء معالجة الدفع");
+                                      }
+                                    }}
+                                    onError={(err: any) => {
+                                      console.error("PayPal error:", err);
+                                      toast.error("حدث خطأ في عملية الدفع");
+                                    }}
+                                  />
+                                </LazyPayPalScriptProvider>
+                              </React.Suspense>
+                            </PayPalErrorBoundary>
                             {paymentSettings.paypal.sandbox && (
                               <p className="text-[10px] text-center text-amber-600 bg-amber-50 rounded p-1">⚠️ وضع الاختبار (Sandbox)</p>
                             )}
