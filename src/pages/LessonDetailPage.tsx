@@ -18,14 +18,14 @@ import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 class PayPalErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { hasError: boolean }
+  { hasError: boolean; errorMessage: string }
 > {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, errorMessage: "" };
   }
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, errorMessage: String(error?.message || error) };
   }
   componentDidCatch(error: any, info: any) {
     console.error("PayPal Error Boundary caught:", error, info);
@@ -33,13 +33,74 @@ class PayPalErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-3 rounded-lg bg-destructive/10 text-sm text-destructive text-center">
-          حدث خطأ في تحميل PayPal. تأكد من صحة Client ID.
+        <div className="p-3 rounded-lg bg-destructive/10 text-sm text-destructive text-center space-y-1">
+          <p>حدث خطأ في تحميل PayPal.</p>
+          <p className="text-[10px] opacity-70 dir-ltr" dir="ltr">{this.state.errorMessage}</p>
         </div>
       );
     }
     return this.props.children;
   }
+}
+
+function PayPalPaymentButtons({ lesson, buying, onSuccess }: {
+  lesson: any;
+  buying: boolean;
+  onSuccess: (orderData: any) => Promise<void>;
+}) {
+  const [sdkReady, setSdkReady] = React.useState(false);
+  const [sdkError, setSdkError] = React.useState<string | null>(null);
+
+  return (
+    <div>
+      {sdkError && (
+        <div className="p-3 rounded-lg bg-destructive/10 text-sm text-destructive text-center space-y-1">
+          <p>خطأ في تحميل PayPal SDK</p>
+          <p className="text-[10px] opacity-70" dir="ltr">{sdkError}</p>
+        </div>
+      )}
+      {!sdkReady && !sdkError && (
+        <div className="p-3 text-center text-sm text-muted-foreground">جارٍ تحميل PayPal...</div>
+      )}
+      <PayPalButtons
+        style={{ layout: "vertical", shape: "rect", label: "pay" }}
+        disabled={buying}
+        onInit={() => {
+          console.log("PayPal Buttons initialized successfully");
+          setSdkReady(true);
+        }}
+        onError={(err: any) => {
+          console.error("PayPal Buttons error:", err);
+          setSdkError(String(err?.message || err));
+        }}
+        createOrder={(_data: any, actions: any) => {
+          return actions.order.create({
+            intent: "CAPTURE",
+            purchase_units: [{
+              amount: {
+                value: String(lesson.price),
+                currency_code: "USD",
+              },
+              description: lesson.title,
+            }],
+          });
+        }}
+        onApprove={async (_data: any, actions: any) => {
+          try {
+            const order = await actions.order?.capture();
+            if (order?.status === "COMPLETED") {
+              await onSuccess(order);
+            } else {
+              toast.error("لم يتم إكمال الدفع");
+            }
+          } catch (err) {
+            console.error("PayPal approve error:", err);
+            toast.error("حدث خطأ أثناء معالجة الدفع");
+          }
+        }}
+      />
+    </div>
+  );
 }
 
 export default function LessonDetailPage() {
@@ -313,44 +374,19 @@ export default function LessonDetailPage() {
                         {paymentMethod === "paypal" && paymentSettings?.paypal?.client_id && (
                           <div className="space-y-3">
                             <PayPalErrorBoundary>
-                                <PayPalScriptProvider options={{
-                                  clientId: paymentSettings.paypal.client_id,
-                                  currency: "USD",
-                                  intent: "capture",
-                                  components: "buttons",
-                                }} key={paymentSettings.paypal.sandbox ? "sandbox" : "live"}>
-                                  <PayPalButtons
-                                    style={{ layout: "vertical", shape: "rect", label: "pay" }}
-                                    disabled={buying}
-                                    createOrder={(_data: any, actions: any) => {
-                                      return actions.order.create({
-                                        intent: "CAPTURE",
-                                        purchase_units: [{
-                                          amount: {
-                                            value: String(lesson.price),
-                                            currency_code: "USD",
-                                          },
-                                          description: lesson.title,
-                                        }],
-                                      });
-                                    }}
-                                    onApprove={async (_data: any, actions: any) => {
-                                      try {
-                                        const order = await actions.order?.capture();
-                                        if (order?.status === "COMPLETED") {
-                                          await handlePayPalSuccess(order);
-                                        } else {
-                                          toast.error("لم يتم إكمال الدفع");
-                                        }
-                                      } catch (err) {
-                                        console.error("PayPal approve error:", err);
-                                        toast.error("حدث خطأ أثناء معالجة الدفع");
-                                      }
-                                    }}
-                                    onError={(err: any) => {
-                                      console.error("PayPal error:", err);
-                                      toast.error("حدث خطأ في عملية الدفع");
-                                    }}
+                                <PayPalScriptProvider 
+                                  options={{
+                                    clientId: paymentSettings.paypal.client_id,
+                                    currency: "USD",
+                                    intent: "capture",
+                                    components: "buttons",
+                                  }} 
+                                  key={`paypal-${paymentSettings.paypal.sandbox ? "sandbox" : "live"}-${paymentSettings.paypal.client_id.slice(-6)}`}
+                                >
+                                  <PayPalPaymentButtons 
+                                    lesson={lesson} 
+                                    buying={buying} 
+                                    onSuccess={handlePayPalSuccess} 
                                   />
                                 </PayPalScriptProvider>
                             </PayPalErrorBoundary>
