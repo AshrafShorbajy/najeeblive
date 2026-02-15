@@ -270,6 +270,38 @@ export type Database = {
           },
         ]
       }
+      group_session_schedules: {
+        Row: {
+          created_at: string
+          id: string
+          lesson_id: string
+          scheduled_at: string | null
+          session_number: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lesson_id: string
+          scheduled_at?: string | null
+          session_number: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lesson_id?: string
+          scheduled_at?: string | null
+          session_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_session_schedules_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           admin_notes: string | null
@@ -325,10 +357,13 @@ export type Database = {
       }
       lessons: {
         Row: {
+          course_start_date: string | null
+          course_topic_type: string | null
           created_at: string
           curriculum_id: string | null
           description: string | null
           duration_minutes: number
+          expected_students: number | null
           grade_level_id: string | null
           id: string
           image_url: string | null
@@ -343,13 +378,17 @@ export type Database = {
           subject_id: string | null
           teacher_id: string
           title: string
+          total_sessions: number | null
           updated_at: string
         }
         Insert: {
+          course_start_date?: string | null
+          course_topic_type?: string | null
           created_at?: string
           curriculum_id?: string | null
           description?: string | null
           duration_minutes?: number
+          expected_students?: number | null
           grade_level_id?: string | null
           id?: string
           image_url?: string | null
@@ -364,13 +403,17 @@ export type Database = {
           subject_id?: string | null
           teacher_id: string
           title: string
+          total_sessions?: number | null
           updated_at?: string
         }
         Update: {
+          course_start_date?: string | null
+          course_topic_type?: string | null
           created_at?: string
           curriculum_id?: string | null
           description?: string | null
           duration_minutes?: number
+          expected_students?: number | null
           grade_level_id?: string | null
           id?: string
           image_url?: string | null
@@ -385,6 +428,7 @@ export type Database = {
           subject_id?: string | null
           teacher_id?: string
           title?: string
+          total_sessions?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -759,7 +803,7 @@ export type Database = {
         | "completed"
         | "cancelled"
       invoice_status: "pending" | "paid" | "rejected"
-      lesson_type: "tutoring" | "bag_review" | "skills"
+      lesson_type: "tutoring" | "bag_review" | "skills" | "group"
       payment_method: "paypal" | "bank_transfer"
     }
     CompositeTypes: {
@@ -897,7 +941,7 @@ export const Constants = {
         "cancelled",
       ],
       invoice_status: ["pending", "paid", "rejected"],
-      lesson_type: ["tutoring", "bag_review", "skills"],
+      lesson_type: ["tutoring", "bag_review", "skills", "group"],
       payment_method: ["paypal", "bank_transfer"],
     },
   },

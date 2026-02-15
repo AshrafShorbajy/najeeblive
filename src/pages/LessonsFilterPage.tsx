@@ -46,9 +46,10 @@ export default function TutoringPage() {
   const isTutoring = type === "tutoring";
   const isBagReview = type === "bag-review";
   const isSkills = type === "skills";
+  const isGroup = type === "group";
 
-  const pageTitle = isTutoring ? "تقوية ومراجعة" : isBagReview ? "مراجعة الشنطة" : "مهارات ومواهب";
-  const lessonType = isTutoring ? "tutoring" : isBagReview ? "bag_review" : "skills";
+  const pageTitle = isTutoring ? "تقوية ومراجعة" : isBagReview ? "مراجعة الشنطة" : isGroup ? "دروس جماعية" : "مهارات ومواهب";
+  const lessonType = isTutoring ? "tutoring" : isBagReview ? "bag_review" : isGroup ? "group" : "skills";
 
   // Load profile data to pre-fill filters for students
   useEffect(() => {
@@ -57,16 +58,13 @@ export default function TutoringPage() {
       .then(({ data }) => {
         if (data) {
           const d = data as any;
-          if (d.curriculum_id && !isBagReview && !isSkills) {
-            setSelectedCurriculum(d.curriculum_id);
-            if (d.grade_level_id) setSelectedGrade(d.grade_level_id);
-          } else if ((isBagReview) && d.curriculum_id) {
+          if (d.curriculum_id && !isSkills) {
             setSelectedCurriculum(d.curriculum_id);
             if (d.grade_level_id) setSelectedGrade(d.grade_level_id);
           }
         }
       });
-  }, [user, isBagReview, isSkills]);
+  }, [user, isSkills]);
 
   useEffect(() => {
     if (!user) return;
@@ -75,7 +73,7 @@ export default function TutoringPage() {
     } else {
       supabase.from("curricula").select("*").then(({ data }) => setCurricula(data ?? []));
     }
-  }, [isSkills, user]);
+  }, [isSkills, isGroup, user]);
 
   useEffect(() => {
     if (selectedCurriculum) {
@@ -85,11 +83,11 @@ export default function TutoringPage() {
   }, [selectedCurriculum]);
 
   useEffect(() => {
-    if (selectedGrade && isTutoring) {
+    if (selectedGrade && (isTutoring || isGroup)) {
       supabase.from("subjects").select("*").eq("grade_level_id", selectedGrade)
         .then(({ data }) => setSubjects(data ?? []));
     }
-  }, [selectedGrade, isTutoring]);
+  }, [selectedGrade, isTutoring, isGroup]);
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -99,7 +97,7 @@ export default function TutoringPage() {
         .eq("lesson_type", lessonType)
         .eq("is_active", true);
 
-      if (isTutoring) {
+      if (isTutoring || isGroup) {
         if (selectedCurriculum) query = query.eq("curriculum_id", selectedCurriculum);
         if (selectedGrade) query = query.eq("grade_level_id", selectedGrade);
         if (selectedSubject) query = query.eq("subject_id", selectedSubject);
@@ -149,6 +147,8 @@ export default function TutoringPage() {
       ? selectedSkill
       : isBagReview
       ? selectedCurriculum && selectedGrade
+      : (isTutoring || isGroup)
+      ? selectedCurriculum && selectedGrade && selectedSubject
       : selectedCurriculum && selectedGrade && selectedSubject;
 
     if (hasFilter) fetchResults();
@@ -203,7 +203,7 @@ export default function TutoringPage() {
                   ))}
                 </SelectContent>
               </Select>
-              {isTutoring && (
+              {(isTutoring || isGroup) && (
                 <Select value={selectedSubject} onValueChange={setSelectedSubject}>
                   <SelectTrigger><SelectValue placeholder="المادة" /></SelectTrigger>
                   <SelectContent>
