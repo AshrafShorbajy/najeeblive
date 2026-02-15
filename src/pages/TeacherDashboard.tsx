@@ -413,7 +413,7 @@ export default function TeacherDashboard() {
 
   return (
     <AppLayout>
-      <div className="px-4 py-6">
+      <div className="px-4 py-6 dashboard-large-text">
         <h1 className="text-2xl font-bold mb-6">لوحة تحكم المعلم</h1>
 
         <Tabs defaultValue="lessons" value={activeTab} onValueChange={handleTabChange}>
