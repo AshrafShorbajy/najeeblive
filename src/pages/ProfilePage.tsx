@@ -106,24 +106,24 @@ export default function ProfilePage() {
         )}
 
         <Tabs defaultValue={defaultTab} className="w-full" dir="rtl">
-          <TabsList className="w-full grid grid-cols-4 mb-4">
-            <TabsTrigger value="personal" className="flex flex-col items-center gap-1 text-xs px-1">
+          <TabsList className="w-full flex flex-col h-auto gap-1 mb-4 p-2">
+            <TabsTrigger value="personal" className="w-full justify-start gap-2 px-3 py-2.5">
               <User className="h-4 w-4" />
-              <span>شخصية</span>
+              <span>معلومات شخصية</span>
             </TabsTrigger>
             {isStudent && (
-              <TabsTrigger value="study" className="flex flex-col items-center gap-1 text-xs px-1">
+              <TabsTrigger value="study" className="w-full justify-start gap-2 px-3 py-2.5">
                 <GraduationCap className="h-4 w-4" />
-                <span>دراسية</span>
+                <span>المعلومات الدراسية</span>
               </TabsTrigger>
             )}
-            <TabsTrigger value="faq" className="flex flex-col items-center gap-1 text-xs px-1">
+            <TabsTrigger value="faq" className="w-full justify-start gap-2 px-3 py-2.5">
               <HelpCircle className="h-4 w-4" />
-              <span>الأسئلة</span>
+              <span>الأسئلة الشائعة</span>
             </TabsTrigger>
-            <TabsTrigger value="contact" className="flex flex-col items-center gap-1 text-xs px-1">
+            <TabsTrigger value="contact" className="w-full justify-start gap-2 px-3 py-2.5">
               <MessageCircle className="h-4 w-4" />
-              <span>تواصل</span>
+              <span>تواصل معنا</span>
             </TabsTrigger>
           </TabsList>
 
