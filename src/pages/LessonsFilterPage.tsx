@@ -50,6 +50,24 @@ export default function TutoringPage() {
   const pageTitle = isTutoring ? "تقوية ومراجعة" : isBagReview ? "مراجعة الشنطة" : "مهارات ومواهب";
   const lessonType = isTutoring ? "tutoring" : isBagReview ? "bag_review" : "skills";
 
+  // Load profile data to pre-fill filters for students
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("profiles").select("curriculum_id, grade_level_id").eq("user_id", user.id).single()
+      .then(({ data }) => {
+        if (data) {
+          const d = data as any;
+          if (d.curriculum_id && !isBagReview && !isSkills) {
+            setSelectedCurriculum(d.curriculum_id);
+            if (d.grade_level_id) setSelectedGrade(d.grade_level_id);
+          } else if ((isBagReview) && d.curriculum_id) {
+            setSelectedCurriculum(d.curriculum_id);
+            if (d.grade_level_id) setSelectedGrade(d.grade_level_id);
+          }
+        }
+      });
+  }, [user, isBagReview, isSkills]);
+
   useEffect(() => {
     if (!user) return;
     if (isSkills) {
