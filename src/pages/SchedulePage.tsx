@@ -30,6 +30,8 @@ export default function SchedulePage() {
         .order("scheduled_at", { ascending: true });
 
       const items = data ?? [];
+      console.log("DEBUG: Loaded bookings for user", user.id, "count:", items.length);
+      console.log("DEBUG: Completed bookings with recording:", items.filter(b => b.status === 'completed' && b.recording_url).map(b => ({ id: b.id, recording_url: b.recording_url, student_id: b.student_id })));
       const teacherIds = [...new Set(items.filter(b => b.student_id === user.id).map(b => b.teacher_id))];
       let teacherMap: Record<string, string> = {};
       if (teacherIds.length > 0) {
