@@ -290,7 +290,22 @@ export default function LessonDetailPage() {
                           )}
                         </RadioGroup>
                         {paymentMethod === "paypal" && paymentSettings?.paypal?.client_id && (
-                          <div className="space-y-3">
+                          <div className="space-y-3 paypal-card-only">
+                            <style>{`
+                              .paypal-card-only .paypal-powered-by,
+                              .paypal-card-only [data-funding-source] .paypal-powered-by,
+                              .paypal-card-only .powered-by-paypal,
+                              .paypal-card-only [class*="powered"],
+                              .paypal-card-only [class*="Powered"] {
+                                display: none !important;
+                              }
+                              .paypal-card-only iframe[title*="address"],
+                              .paypal-card-only [data-field="postal"],
+                              .paypal-card-only [data-field="name"],
+                              .paypal-card-only [data-field="billingAddress"] {
+                                display: none !important;
+                              }
+                            `}</style>
                             <PayPalScriptProvider
                               key={`paypal-${paymentSettings.paypal.sandbox ? "sandbox" : "live"}-${paymentSettings.paypal.client_id.slice(-6)}`}
                               options={{
@@ -303,7 +318,7 @@ export default function LessonDetailPage() {
                             >
                               <PayPalButtons
                                 fundingSource="card"
-                                style={{ layout: "vertical", shape: "rect", label: "pay", color: "black" }}
+                                style={{ layout: "vertical", shape: "rect", label: "pay", color: "black", tagline: false }}
                                 disabled={buying}
                                 createOrder={(_data: any, actions: any) => {
                                   return actions.order.create({
