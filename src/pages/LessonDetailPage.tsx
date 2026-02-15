@@ -317,6 +317,7 @@ export default function LessonDetailPage() {
                                   clientId: paymentSettings.paypal.client_id,
                                   currency: "USD",
                                   intent: "capture",
+                                  components: "buttons",
                                 }} key={paymentSettings.paypal.sandbox ? "sandbox" : "live"}>
                                   <PayPalButtons
                                     style={{ layout: "vertical", shape: "rect", label: "pay" }}
