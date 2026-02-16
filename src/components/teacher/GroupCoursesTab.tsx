@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Edit, Users, CalendarDays } from "lucide-react";
+import { Plus, Edit, Users, CalendarDays, Video, CheckCircle, Upload, PlayCircle, Loader2, ArrowRight } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface GroupCoursesTabProps {
@@ -36,12 +36,17 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
   const [editOpen, setEditOpen] = useState(false);
   const [editSessionDates, setEditSessionDates] = useState<{ id?: string; session_number: number; scheduled_at: string }[]>([]);
 
+  // Session management state
+  const [managingCourse, setManagingCourse] = useState<any>(null);
+  const [courseSessions, setCourseSessions] = useState<any[]>([]);
+  const [uploadingSessionId, setUploadingSessionId] = useState<string | null>(null);
+  const [startingSessionId, setStartingSessionId] = useState<string | null>(null);
+
   useEffect(() => {
     fetchCourses();
     supabase.from("curricula").select("*").then(({ data }) => setCurricula(data ?? []));
   }, [userId]);
 
-  // Dynamic grade levels for add form
   useEffect(() => {
     if (newCourse.curriculum_id) {
       supabase.from("grade_levels").select("*").eq("curriculum_id", newCourse.curriculum_id)
@@ -113,7 +118,6 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
       course_start_date: course.course_start_date ? new Date(course.course_start_date).toISOString().slice(0, 16) : "",
     });
 
-    // Load grade levels and subjects for edit
     if (course.curriculum_id) {
       supabase.from("grade_levels").select("*").eq("curriculum_id", course.curriculum_id)
         .then(({ data }) => setGradeLevels(data ?? []));
@@ -123,7 +127,6 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
         .then(({ data }) => setSubjects(data ?? []));
     }
 
-    // Load session schedules
     const { data: schedules } = await supabase.from("group_session_schedules")
       .select("*").eq("lesson_id", course.id).order("session_number");
 
@@ -165,7 +168,6 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
 
     if (error) { toast.error("خطأ في تعديل الكورس"); return; }
 
-    // Update session schedules - upsert existing, insert new
     for (const sd of editSessionDates) {
       if (sd.id) {
         await supabase.from("group_session_schedules").update({
@@ -186,6 +188,174 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
     fetchCourses();
     onCoursesChange?.();
   };
+
+  // Session management functions
+  const openManageSessions = async (course: any) => {
+    setManagingCourse(course);
+    const { data } = await supabase.from("group_session_schedules")
+      .select("*").eq("lesson_id", course.id).order("session_number");
+    setCourseSessions(data ?? []);
+  };
+
+  const handleStartSession = async (session: any) => {
+    setStartingSessionId(session.id);
+    try {
+      const { data: zoomData, error: zoomError } = await supabase.functions.invoke("create-zoom-meeting", {
+        body: {
+          topic: `${managingCourse?.title} - حصة ${session.session_number}`,
+          duration: managingCourse?.duration_minutes || 60,
+          start_time: session.scheduled_at || new Date().toISOString(),
+        },
+      });
+
+      const updateData: Record<string, any> = { status: "active" };
+      if (zoomData && !zoomError) {
+        updateData.zoom_meeting_id = String(zoomData.id);
+        updateData.zoom_join_url = zoomData.join_url;
+        updateData.zoom_start_url = zoomData.start_url;
+      }
+
+      await supabase.from("group_session_schedules").update(updateData as any).eq("id", session.id);
+      toast.success("تم بدء الحصة وإنشاء رابط زوم");
+      openManageSessions(managingCourse);
+    } catch (err) {
+      toast.error("خطأ في بدء الحصة");
+    } finally {
+      setStartingSessionId(null);
+    }
+  };
+
+  const handleEndSession = async (session: any) => {
+    await supabase.from("group_session_schedules").update({
+      status: "completed",
+      zoom_join_url: null,
+      zoom_start_url: null,
+      zoom_meeting_id: null,
+    } as any).eq("id", session.id);
+    toast.success("تم إنهاء الحصة");
+    openManageSessions(managingCourse);
+  };
+
+  const handleUploadSessionRecording = async (session: any) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "video/*";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      if (file.size > 500 * 1024 * 1024) {
+        toast.error("حجم الملف كبير جداً (الحد الأقصى 500 ميغابايت)");
+        return;
+      }
+      setUploadingSessionId(session.id);
+      try {
+        const ext = file.name.split(".").pop();
+        const path = `${userId}/${managingCourse.id}_session_${session.session_number}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("recordings").upload(path, file, { upsert: true });
+        if (uploadError) throw uploadError;
+        const { data: urlData } = supabase.storage.from("recordings").getPublicUrl(path);
+        await supabase.from("group_session_schedules").update({ recording_url: urlData.publicUrl } as any).eq("id", session.id);
+        toast.success("تم رفع التسجيل بنجاح");
+        openManageSessions(managingCourse);
+      } catch {
+        toast.error("خطأ في رفع التسجيل");
+      } finally {
+        setUploadingSessionId(null);
+      }
+    };
+    input.click();
+  };
+
+  const sessionStatusLabel = (s: string) => {
+    const map: Record<string, string> = { pending: "لم تبدأ", active: "جارية", completed: "منتهية" };
+    return map[s] ?? s;
+  };
+  const sessionStatusColor = (s: string) => {
+    const map: Record<string, string> = { pending: "bg-muted text-muted-foreground", active: "bg-primary/10 text-primary", completed: "bg-success/10 text-success" };
+    return map[s] ?? "";
+  };
+
+  // Session management view
+  if (managingCourse) {
+    return (
+      <div>
+        <button onClick={() => setManagingCourse(null)} className="text-sm text-primary flex items-center gap-1 mb-4">
+          <ArrowRight className="h-4 w-4" />
+          رجوع للكورسات
+        </button>
+        <h2 className="text-lg font-bold mb-2">{managingCourse.title}</h2>
+        <p className="text-xs text-muted-foreground mb-4">إدارة حصص الكورس - {courseSessions.length} حصة</p>
+        
+        <div className="space-y-3">
+          {courseSessions.filter(s => s.scheduled_at).map((session) => (
+            <div key={session.id} className="bg-card rounded-xl p-4 border border-border">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="font-semibold text-sm">حصة {session.session_number}</h3>
+                  <p className="text-xs text-muted-foreground">{new Date(session.scheduled_at).toLocaleString("ar")}</p>
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full font-medium ${sessionStatusColor(session.status)}`}>
+                  {sessionStatusLabel(session.status)}
+                </span>
+              </div>
+
+              {/* Start session */}
+              {session.status === "pending" && (
+                <Button size="sm" variant="hero" className="w-full mb-2"
+                  disabled={startingSessionId === session.id}
+                  onClick={() => handleStartSession(session)}>
+                  {startingSessionId === session.id ? (
+                    <><Loader2 className="h-4 w-4 ml-2 animate-spin" />جاري إنشاء الرابط...</>
+                  ) : (
+                    <><Video className="h-4 w-4 ml-2" />بدء الحصة (إنشاء رابط زوم)</>
+                  )}
+                </Button>
+              )}
+
+              {/* Active session - show zoom link and end button */}
+              {session.status === "active" && (
+                <>
+                  {session.zoom_start_url && (
+                    <a href={session.zoom_start_url} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="hero" className="w-full mb-2">
+                        <Video className="h-4 w-4 ml-2" />
+                        دخول الحصة (زوم)
+                      </Button>
+                    </a>
+                  )}
+                  <Button size="sm" variant="outline" className="w-full mb-2 text-success border-success/30 hover:bg-success/10"
+                    onClick={() => handleEndSession(session)}>
+                    <CheckCircle className="h-4 w-4 ml-2" />
+                    إنهاء الحصة
+                  </Button>
+                </>
+              )}
+
+              {/* Completed - upload recording or show status */}
+              {session.status === "completed" && !session.recording_url && (
+                <Button size="sm" variant="outline" className="w-full mb-2 text-primary border-primary/30 hover:bg-primary/10"
+                  onClick={() => handleUploadSessionRecording(session)}
+                  disabled={uploadingSessionId === session.id}>
+                  {uploadingSessionId === session.id ? (
+                    <><Loader2 className="h-4 w-4 ml-2 animate-spin" />جاري الرفع...</>
+                  ) : (
+                    <><Upload className="h-4 w-4 ml-2" />رفع تسجيل الحصة</>
+                  )}
+                </Button>
+              )}
+
+              {session.status === "completed" && session.recording_url && (
+                <div className="flex items-center gap-2 text-sm text-success">
+                  <CheckCircle className="h-4 w-4" />
+                  <span>تم رفع التسجيل</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const CourseFormFields = ({ form, setForm, isEdit }: { form: any; setForm: (f: any) => void; isEdit?: boolean }) => (
     <div className="space-y-3">
@@ -255,7 +425,6 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
               setForm({ ...form, total_sessions: val, session_dates: dates.slice(0, val) });
             } else {
               setForm({ ...form, total_sessions: val });
-              // Expand editSessionDates if needed
               setEditSessionDates(prev => {
                 const newDates = [...prev];
                 while (newDates.length < val) newDates.push({ session_number: newDates.length + 1, scheduled_at: "" });
@@ -374,6 +543,11 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
                   </span>
                 </div>
               </div>
+              <Button size="sm" variant="outline" className="w-full mt-3 text-primary border-primary/30 hover:bg-primary/10"
+                onClick={() => openManageSessions(c)}>
+                <CalendarDays className="h-4 w-4 ml-2" />
+                إدارة حصص الكورس
+              </Button>
             </div>
           ))
         )}

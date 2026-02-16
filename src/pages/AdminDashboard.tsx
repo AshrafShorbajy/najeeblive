@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench, ImagePlus, Globe, ChevronDown, Palette, CreditCard, Percent, ShieldOff, Eye } from "lucide-react";
+import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench, ImagePlus, Globe, ChevronDown, Palette, CreditCard, Percent, ShieldOff, Eye, Video } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -74,10 +74,11 @@ export default function AdminDashboard() {
   const [contactInfo, setContactInfo] = useState<{ email: string; phone: string; whatsapp: string }>({ email: "", phone: "", whatsapp: "" });
   const [promoBanners, setPromoBanners] = useState<{ title: string; description: string; image_url?: string }[]>([]);
   const [homepageSectionsOrder, setHomepageSectionsOrder] = useState<string[]>(["announcements", "promo_banners", "lesson_types", "offers"]);
+  const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "cloud"; cloud_account_id: string; cloud_client_id: string; cloud_client_secret: string }>({ recording_mode: "manual", cloud_account_id: "", cloud_client_id: "", cloud_client_secret: "" });
 
   // Badge counters
   const [adminActiveTab, setAdminActiveTab] = useState("curricula");
-  const [settingsSubTab, setSettingsSubTab] = useState<"design" | "payment" | "currency" | "commission" | "maintenance" | "contact" | "homepage">("design");
+  const [settingsSubTab, setSettingsSubTab] = useState<"design" | "payment" | "currency" | "commission" | "maintenance" | "contact" | "homepage" | "zoom">("design");
   const [adminViewedTabs, setAdminViewedTabs] = useState<Set<string>>(new Set(["curricula"]));
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [pendingInvoicesCount, setPendingInvoicesCount] = useState(0);
@@ -917,8 +918,10 @@ export default function AdminDashboard() {
                       {settingsSubTab === "payment" && "طرق الدفع"}
                       {settingsSubTab === "currency" && "عملة الموقع"}
                       {settingsSubTab === "commission" && "نسبة العمولة"}
-                      {settingsSubTab === "maintenance" && "إغلاق الموقع"}
-                      {settingsSubTab === "contact" && "تواصل معنا"}
+                       {settingsSubTab === "maintenance" && "إغلاق الموقع"}
+                       {settingsSubTab === "contact" && "تواصل معنا"}
+                       {settingsSubTab === "homepage" && "ترتيب الصفحة الرئيسية"}
+                       {settingsSubTab === "zoom" && "إعدادات زوم"}
                       {settingsSubTab === "homepage" && "ترتيب الصفحة الرئيسية"}
                     </span>
                     <ChevronDown className="h-3 w-3" />
@@ -943,9 +946,12 @@ export default function AdminDashboard() {
                   <DropdownMenuItem onClick={() => setSettingsSubTab("contact")}>
                     <Mail className="h-4 w-4 ml-1" /> تواصل معنا
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSettingsSubTab("homepage")}>
-                    <Eye className="h-4 w-4 ml-1" /> ترتيب الصفحة الرئيسية
-                  </DropdownMenuItem>
+                   <DropdownMenuItem onClick={() => setSettingsSubTab("homepage")}>
+                     <Eye className="h-4 w-4 ml-1" /> ترتيب الصفحة الرئيسية
+                   </DropdownMenuItem>
+                   <DropdownMenuItem onClick={() => setSettingsSubTab("zoom")}>
+                     <Video className="h-4 w-4 ml-1" /> إعدادات زوم
+                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 

@@ -529,7 +529,7 @@ export default function TeacherDashboard() {
                     <Select value={newLesson.lesson_type} onValueChange={(v) => setNewLesson({ ...newLesson, lesson_type: v })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="tutoring">تقوية ومراجعة</SelectItem>
+                        <SelectItem value="tutoring">دروس فردية</SelectItem>
                         <SelectItem value="bag_review">مراجعة الشنطة</SelectItem>
                         <SelectItem value="skills">مهارات ومواهب</SelectItem>
                       </SelectContent>
@@ -609,7 +609,7 @@ export default function TeacherDashboard() {
                       <Select value={editLesson.lesson_type} onValueChange={(v) => setEditLesson({ ...editLesson, lesson_type: v })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="tutoring">تقوية ومراجعة</SelectItem>
+                          <SelectItem value="tutoring">دروس فردية</SelectItem>
                           <SelectItem value="bag_review">مراجعة الشنطة</SelectItem>
                           <SelectItem value="skills">مهارات ومواهب</SelectItem>
                         </SelectContent>

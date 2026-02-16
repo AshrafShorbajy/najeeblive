@@ -4,13 +4,15 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Video, Clock, CheckCircle, User, MessageCircle, Send, ArrowRight, Upload, PlayCircle, Loader2 } from "lucide-react";
+import { Video, Clock, CheckCircle, User, MessageCircle, Send, ArrowRight, Upload, PlayCircle, Loader2, Users, CalendarDays, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { VideoPlayer } from "@/components/schedule/VideoPlayer";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 export default function SchedulePage() {
   const { user, isTeacher } = useAuthContext();
+  const { format } = useCurrency();
   const [bookings, setBookings] = useState<any[]>([]);
   const [chatBookingId, setChatBookingId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -19,19 +21,23 @@ export default function SchedulePage() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [watchingBooking, setWatchingBooking] = useState<any | null>(null);
+  const [watchingSession, setWatchingSession] = useState<any | null>(null);
+
+  // Group course detail view
+  const [viewingCourse, setViewingCourse] = useState<any | null>(null);
+  const [courseSessions, setCourseSessions] = useState<any[]>([]);
+  const [courseEnrolledCount, setCourseEnrolledCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
     const loadBookings = async () => {
       const { data } = await supabase
         .from("bookings")
-        .select("*, lessons(title, duration_minutes)")
+        .select("*, lessons(title, duration_minutes, lesson_type, total_sessions, expected_students, teacher_id)")
         .or(`student_id.eq.${user.id},teacher_id.eq.${user.id}`)
         .order("scheduled_at", { ascending: true });
 
       const items = data ?? [];
-      console.log("DEBUG: Loaded bookings for user", user.id, "count:", items.length);
-      console.log("DEBUG: Completed bookings with recording:", items.filter(b => b.status === 'completed' && b.recording_url).map(b => ({ id: b.id, recording_url: b.recording_url, student_id: b.student_id })));
       const teacherIds = [...new Set(items.filter(b => b.student_id === user.id).map(b => b.teacher_id))];
       let teacherMap: Record<string, string> = {};
       if (teacherIds.length > 0) {
@@ -41,27 +47,56 @@ export default function SchedulePage() {
           .in("user_id", teacherIds);
         profiles?.forEach(p => { teacherMap[p.user_id] = p.full_name; });
       }
-      setBookings(items.map(b => ({ ...b, teacher_name: teacherMap[b.teacher_id] || "" })));
+
+      // For group lessons, fetch completed/total session counts
+      const groupLessonIds = [...new Set(items.filter(b => (b as any).lessons?.lesson_type === "group").map(b => b.lesson_id))];
+      let sessionCountMap: Record<string, { total: number; completed: number }> = {};
+      if (groupLessonIds.length > 0) {
+        for (const lid of groupLessonIds) {
+          const { data: sessions } = await supabase.from("group_session_schedules")
+            .select("status").eq("lesson_id", lid);
+          const all = sessions ?? [];
+          sessionCountMap[lid] = {
+            total: all.length,
+            completed: all.filter(s => (s as any).status === "completed").length,
+          };
+        }
+      }
+
+      // Enrolled count for group lessons
+      let enrolledMap: Record<string, number> = {};
+      if (groupLessonIds.length > 0) {
+        for (const lid of groupLessonIds) {
+          const { count } = await supabase.from("bookings")
+            .select("id", { count: "exact", head: true })
+            .eq("lesson_id", lid)
+            .in("status", ["scheduled", "accepted", "completed"]);
+          enrolledMap[lid] = count ?? 0;
+        }
+      }
+
+      setBookings(items.map(b => ({
+        ...b,
+        teacher_name: teacherMap[b.teacher_id] || "",
+        session_counts: sessionCountMap[b.lesson_id],
+        enrolled_count: enrolledMap[b.lesson_id] || 0,
+      })));
     };
     loadBookings();
 
-    // Realtime: auto-update when booking recording_url changes
     const channel = supabase
       .channel("bookings-recordings")
-      .on("postgres_changes", {
-        event: "UPDATE",
-        schema: "public",
-        table: "bookings",
-      }, (payload) => {
-        const updated = payload.new as any;
-        setBookings(prev => prev.map(b => b.id === updated.id ? { ...b, ...updated } : b));
-      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "bookings" },
+        (payload) => {
+          const updated = payload.new as any;
+          setBookings(prev => prev.map(b => b.id === updated.id ? { ...b, ...updated } : b));
+        })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
-  // Upload recording handler (teacher only)
+  // Upload recording handler (teacher only, individual lessons)
   const handleUploadRecording = async (bookingId: string, teacherId: string) => {
     const input = document.createElement("input");
     input.type = "file";
@@ -69,44 +104,34 @@ export default function SchedulePage() {
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-
-      if (file.size > 500 * 1024 * 1024) {
-        toast.error("حجم الملف كبير جداً (الحد الأقصى 500 ميغابايت)");
-        return;
-      }
-
+      if (file.size > 500 * 1024 * 1024) { toast.error("حجم الملف كبير جداً (الحد الأقصى 500 ميغابايت)"); return; }
       setUploadingId(bookingId);
       try {
         const ext = file.name.split(".").pop();
         const path = `${teacherId}/${bookingId}.${ext}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("recordings")
-          .upload(path, file, { upsert: true });
-
+        const { error: uploadError } = await supabase.storage.from("recordings").upload(path, file, { upsert: true });
         if (uploadError) throw uploadError;
-
-        const { data: urlData } = supabase.storage
-          .from("recordings")
-          .getPublicUrl(path);
-
-        const { error: updateError } = await supabase
-          .from("bookings")
-          .update({ recording_url: urlData.publicUrl })
-          .eq("id", bookingId);
-
-        if (updateError) throw updateError;
-
+        const { data: urlData } = supabase.storage.from("recordings").getPublicUrl(path);
+        await supabase.from("bookings").update({ recording_url: urlData.publicUrl }).eq("id", bookingId);
         setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, recording_url: urlData.publicUrl } : b));
         toast.success("تم رفع التسجيل بنجاح");
-      } catch (err: any) {
-        console.error(err);
-        toast.error("خطأ في رفع التسجيل");
-      } finally {
-        setUploadingId(null);
-      }
+      } catch { toast.error("خطأ في رفع التسجيل"); }
+      finally { setUploadingId(null); }
     };
     input.click();
+  };
+
+  // Open group course detail
+  const openCourseDetail = async (booking: any) => {
+    setViewingCourse(booking);
+    const { data } = await supabase.from("group_session_schedules")
+      .select("*").eq("lesson_id", booking.lesson_id).order("session_number");
+    setCourseSessions(data ?? []);
+    const { count } = await supabase.from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("lesson_id", booking.lesson_id)
+      .in("status", ["scheduled", "accepted", "completed"]);
+    setCourseEnrolledCount(count ?? 0);
   };
 
   // Open chat for a booking
@@ -163,20 +188,111 @@ export default function SchedulePage() {
     return map[s] ?? "";
   };
 
-  // Video player view
+  const isGroupLesson = (b: any) => (b as any).lessons?.lesson_type === "group";
+
+  // Watching session recording (group course)
+  if (watchingSession) {
+    return (
+      <AppLayout>
+        <div className="px-4 py-6 max-w-3xl mx-auto">
+          <button onClick={() => setWatchingSession(null)} className="text-sm text-primary flex items-center gap-1 mb-4">
+            <ArrowRight className="h-4 w-4" />رجوع
+          </button>
+          <h2 className="text-lg font-bold mb-4">حصة {watchingSession.session_number} - تسجيل</h2>
+          <VideoPlayer src={watchingSession.recording_url} title={`حصة ${watchingSession.session_number}`} />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Video player view (individual lesson)
   if (watchingBooking) {
     return (
       <AppLayout>
         <div className="px-4 py-6 max-w-3xl mx-auto">
           <button onClick={() => setWatchingBooking(null)} className="text-sm text-primary flex items-center gap-1 mb-4">
-            <ArrowRight className="h-4 w-4" />
-            رجوع للجدول
+            <ArrowRight className="h-4 w-4" />رجوع للجدول
           </button>
           <h2 className="text-lg font-bold mb-4">{watchingBooking.lessons?.title ?? "تسجيل الحصة"}</h2>
-          <VideoPlayer
-            src={watchingBooking.recording_url}
-            title={watchingBooking.lessons?.title}
-          />
+          <VideoPlayer src={watchingBooking.recording_url} title={watchingBooking.lessons?.title} />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Group course detail view
+  if (viewingCourse) {
+    const paidSessions = (viewingCourse as any).paid_sessions || viewingCourse.lessons?.total_sessions || 999;
+    return (
+      <AppLayout>
+        <div className="px-4 py-6">
+          <button onClick={() => setViewingCourse(null)} className="text-sm text-primary flex items-center gap-1 mb-4">
+            <ArrowRight className="h-4 w-4" />رجوع للجدول
+          </button>
+          <div className="bg-card rounded-xl p-4 border border-border mb-4">
+            <h2 className="text-lg font-bold">{viewingCourse.lessons?.title}</h2>
+            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
+              {viewingCourse.teacher_name && <span className="flex items-center gap-1"><User className="h-3 w-3" />المعلم: {viewingCourse.teacher_name}</span>}
+              <span className="flex items-center gap-1"><Users className="h-3 w-3" />{courseEnrolledCount} طالب</span>
+              <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />{viewingCourse.lessons?.total_sessions} حصة</span>
+            </div>
+            {/* Installment payment warning */}
+            {(viewingCourse as any).is_installment && paidSessions < (viewingCourse.lessons?.total_sessions || 0) && (
+              <div className="mt-3 p-3 rounded-lg bg-warning/10 border border-warning/20 text-sm">
+                <p className="font-semibold text-warning mb-1">⚠️ يجب دفع الدفعة التالية</p>
+                <p className="text-xs text-muted-foreground">الحصص المدفوعة: {paidSessions} من {viewingCourse.lessons?.total_sessions}</p>
+              </div>
+            )}
+          </div>
+
+          <h3 className="font-semibold mb-3">حصص الكورس</h3>
+          <div className="space-y-3">
+            {courseSessions.filter(s => s.scheduled_at).map((session) => {
+              const sessionStatus = (session as any).status || "pending";
+              const isUnlocked = session.session_number <= paidSessions;
+              return (
+                <div key={session.id} className={`bg-card rounded-xl p-4 border ${isUnlocked ? "border-border" : "border-destructive/30 opacity-60"}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h4 className="font-semibold text-sm">حصة {session.session_number}</h4>
+                      <p className="text-xs text-muted-foreground">{new Date(session.scheduled_at).toLocaleString("ar")}</p>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                      sessionStatus === "completed" ? "bg-success/10 text-success" :
+                      sessionStatus === "active" ? "bg-primary/10 text-primary" :
+                      "bg-muted text-muted-foreground"
+                    }`}>
+                      {sessionStatus === "completed" ? "منتهية" : sessionStatus === "active" ? "جارية" : "لم تبدأ"}
+                    </span>
+                  </div>
+
+                  {!isUnlocked && (
+                    <p className="text-xs text-destructive mb-2">🔒 يجب دفع الدفعة التالية لفتح هذه الحصة</p>
+                  )}
+
+                  {isUnlocked && sessionStatus === "active" && (session as any).zoom_join_url && (
+                    <a href={(session as any).zoom_join_url} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="hero" className="w-full mb-2">
+                        <Video className="h-4 w-4 ml-2" />دخول الحصة
+                      </Button>
+                    </a>
+                  )}
+
+                  {isUnlocked && sessionStatus === "completed" && (session as any).recording_url && (
+                    <Button size="sm" variant="outline" className="w-full text-primary border-primary/30 hover:bg-primary/10"
+                      onClick={() => setWatchingSession(session)}>
+                      <PlayCircle className="h-4 w-4 ml-2" />مشاهدة تسجيل الحصة
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Chat button */}
+          <Button size="sm" variant="outline" className="w-full mt-4" onClick={() => openChat(viewingCourse)}>
+            <MessageCircle className="h-4 w-4 ml-2" />مراسلة المعلم
+          </Button>
         </div>
       </AppLayout>
     );
@@ -189,8 +305,7 @@ export default function SchedulePage() {
         <div className="flex flex-col h-[calc(100vh-8rem)]">
           <div className="p-3 border-b border-border flex items-center gap-2">
             <button onClick={() => { setChatBookingId(null); setConversationId(null); setMessages([]); }} className="text-sm text-primary flex items-center gap-1">
-              <ArrowRight className="h-4 w-4" />
-              رجوع
+              <ArrowRight className="h-4 w-4" />رجوع
             </button>
             <span className="font-semibold text-sm flex-1">محادثة: {currentBooking?.lessons?.title ?? "حصة"}</span>
             {isChatReadOnly && <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">للقراءة فقط</span>}
@@ -236,24 +351,55 @@ export default function SchedulePage() {
                   <div className="space-y-3">
                     {filtered.map((b) => (
                       <div key={b.id} className="bg-card rounded-xl p-4 border border-border">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-semibold">{(b as any).lessons?.title ?? "حصة"}</h3>
+                        {/* Tag: individual or group */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                            isGroupLesson(b) 
+                              ? "bg-secondary/10 text-secondary border border-secondary/20" 
+                              : "bg-primary/10 text-primary border border-primary/20"
+                          }`}>
+                            {isGroupLesson(b) ? "كورس جماعي" : "حصة فردية"}
+                          </span>
                           <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColor(b.status)}`}>{statusLabel(b.status)}</span>
                         </div>
+
+                        <h3 className="font-semibold">{(b as any).lessons?.title ?? "حصة"}</h3>
+
                         {b.student_id === user?.id && b.teacher_name && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                             <User className="h-4 w-4" />
                             <span>المعلم: {b.teacher_name}</span>
                           </div>
                         )}
-                        {b.scheduled_at && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+
+                        {/* Group course metadata */}
+                        {isGroupLesson(b) && (
+                          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                            <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />
+                              {b.session_counts ? `${b.session_counts.completed}/${b.session_counts.total} حصة منتهية` : `${b.lessons?.total_sessions} حصة`}
+                            </span>
+                            <span className="flex items-center gap-1"><Users className="h-3 w-3" />{b.enrolled_count} طالب</span>
+                          </div>
+                        )}
+
+                        {b.scheduled_at && !isGroupLesson(b) && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                             <Clock className="h-4 w-4" />
                             <span>{new Date(b.scheduled_at).toLocaleString("ar")}</span>
                           </div>
                         )}
-                        {b.status === "scheduled" && b.teacher_id === user?.id && isTeacher && (
-                          <Button size="sm" variant="outline" className="w-full mb-2 text-success border-success/30 hover:bg-success/10"
+
+                        {/* Group course - view sessions button */}
+                        {isGroupLesson(b) && b.student_id === user?.id && (
+                          <Button size="sm" variant="outline" className="w-full mt-2 text-primary border-primary/30 hover:bg-primary/10"
+                            onClick={() => openCourseDetail(b)}>
+                            <CalendarDays className="h-4 w-4 ml-2" />عرض حصص الكورس
+                          </Button>
+                        )}
+
+                        {/* Individual lesson actions */}
+                        {!isGroupLesson(b) && b.status === "scheduled" && b.teacher_id === user?.id && isTeacher && (
+                          <Button size="sm" variant="outline" className="w-full mb-2 mt-2 text-success border-success/30 hover:bg-success/10"
                             onClick={async () => {
                               const { error } = await supabase.from("bookings").update({
                                 status: "completed", zoom_join_url: null, zoom_start_url: null, zoom_meeting_id: null,
@@ -264,11 +410,10 @@ export default function SchedulePage() {
                                 setBookings(prev => prev.map(item => item.id === b.id ? { ...item, status: "completed", zoom_join_url: null, zoom_start_url: null, zoom_meeting_id: null } : item));
                               }
                             }}>
-                            <CheckCircle className="h-4 w-4 ml-2" />
-                            إنهاء الحصة
+                            <CheckCircle className="h-4 w-4 ml-2" />إنهاء الحصة
                           </Button>
                         )}
-                        {b.status === "scheduled" && (b.zoom_join_url || b.zoom_start_url) && (
+                        {!isGroupLesson(b) && b.status === "scheduled" && (b.zoom_join_url || b.zoom_start_url) && (
                           <a href={b.teacher_id === user?.id ? (b.zoom_start_url ?? b.zoom_join_url) : b.zoom_join_url} target="_blank" rel="noopener noreferrer">
                             <Button size="sm" variant="hero" className="w-full mb-2">
                               <Video className="h-4 w-4 ml-2" />
@@ -276,7 +421,7 @@ export default function SchedulePage() {
                             </Button>
                           </a>
                         )}
-                        {b.status === "completed" && b.teacher_id === user?.id && isTeacher && !b.recording_url && (
+                        {!isGroupLesson(b) && b.status === "completed" && b.teacher_id === user?.id && isTeacher && !b.recording_url && (
                           <Button size="sm" variant="outline" className="w-full mb-2 text-primary border-primary/30 hover:bg-primary/10"
                             onClick={() => handleUploadRecording(b.id, b.teacher_id)}
                             disabled={uploadingId === b.id}>
@@ -287,20 +432,20 @@ export default function SchedulePage() {
                             )}
                           </Button>
                         )}
-                        {b.status === "completed" && b.teacher_id === user?.id && isTeacher && b.recording_url && (
+                        {!isGroupLesson(b) && b.status === "completed" && b.teacher_id === user?.id && isTeacher && b.recording_url && (
                           <div className="flex items-center gap-2 text-sm text-success mb-2">
-                            <CheckCircle className="h-4 w-4" />
-                            <span>تم رفع التسجيل</span>
+                            <CheckCircle className="h-4 w-4" /><span>تم رفع التسجيل</span>
                           </div>
                         )}
-                        {b.status === "completed" && b.student_id === user?.id && b.recording_url && (
+                        {!isGroupLesson(b) && b.status === "completed" && b.student_id === user?.id && b.recording_url && (
                           <Button size="sm" variant="outline" className="w-full mb-2 text-primary border-primary/30 hover:bg-primary/10"
                             onClick={() => setWatchingBooking(b)}>
-                            <PlayCircle className="h-4 w-4 ml-2" />
-                            مشاهدة تسجيل الحصة
+                            <PlayCircle className="h-4 w-4 ml-2" />مشاهدة تسجيل الحصة
                           </Button>
                         )}
-                        {b.student_id === user?.id && (b.status === "accepted" || b.status === "scheduled" || b.status === "completed") && (
+
+                        {/* Chat for individual lessons */}
+                        {!isGroupLesson(b) && b.student_id === user?.id && (b.status === "accepted" || b.status === "scheduled" || b.status === "completed") && (
                           <Button size="sm" variant="outline" className="w-full" onClick={() => openChat(b)}>
                             <MessageCircle className="h-4 w-4 ml-2" />
                             {b.status === "completed" ? "عرض المحادثة" : "مراسلة المعلم"}

@@ -7,7 +7,7 @@ import { toast } from "sonner";
 const types = [
   {
     id: "tutoring",
-    title: "تقوية ومراجعة",
+    title: "دروس فردية",
     description: "دروس خصوصية في جميع المواد الدراسية",
     icon: BookOpen,
     path: "/lessons/tutoring",
