@@ -294,6 +294,7 @@ export default function SchedulePage() {
   // Open chat for a booking
   const openChat = async (booking: any) => {
     if (!user) return;
+    setViewingCourse(null); // Clear course detail view so chat can render
     setChatBookingId(booking.id);
     const { data: existing } = await supabase
       .from("conversations").select("id").eq("booking_id", booking.id).maybeSingle();
