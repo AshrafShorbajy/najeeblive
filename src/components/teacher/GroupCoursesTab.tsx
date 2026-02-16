@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Plus, Edit, Users, CalendarDays, Video, CheckCircle, Upload, PlayCircle, Loader2, ArrowRight } from "lucide-react";
+import { Plus, Edit, Users, CalendarDays, Video, CheckCircle, Upload, Loader2, ArrowRight, Trash2, PlayCircle } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface GroupCoursesTabProps {
@@ -25,6 +26,7 @@ const emptyForm = {
 export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCoursesTabProps) {
   const { format } = useCurrency();
   const [courses, setCourses] = useState<any[]>([]);
+  const [enrolledCounts, setEnrolledCounts] = useState<Record<string, number>>({});
   const [curricula, setCurricula] = useState<any[]>([]);
   const [gradeLevels, setGradeLevels] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -39,6 +41,7 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
   // Session management state
   const [managingCourse, setManagingCourse] = useState<any>(null);
   const [courseSessions, setCourseSessions] = useState<any[]>([]);
+  const [enrolledInManaging, setEnrolledInManaging] = useState(0);
   const [uploadingSessionId, setUploadingSessionId] = useState<string | null>(null);
   const [startingSessionId, setStartingSessionId] = useState<string | null>(null);
 
@@ -66,6 +69,19 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
       .eq("teacher_id", userId).eq("lesson_type", "group")
       .order("created_at", { ascending: false });
     setCourses(data ?? []);
+
+    // Fetch enrolled counts for all courses
+    if (data && data.length > 0) {
+      const counts: Record<string, number> = {};
+      await Promise.all(data.map(async (c) => {
+        const { count } = await supabase.from("bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("lesson_id", c.id)
+          .in("status", ["pending", "accepted", "scheduled"]);
+        counts[c.id] = count ?? 0;
+      }));
+      setEnrolledCounts(counts);
+    }
   };
 
   const handleAdd = async () => {
@@ -107,6 +123,19 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
     setNewCourse({ ...emptyForm });
     fetchCourses();
     onCoursesChange?.();
+  };
+
+  const handleDeleteCourse = async (courseId: string) => {
+    // Delete session schedules first, then the lesson
+    await supabase.from("group_session_schedules").delete().eq("lesson_id", courseId);
+    const { error } = await supabase.from("lessons").delete().eq("id", courseId);
+    if (error) {
+      toast.error("لا يمكن حذف الكورس - قد يكون هناك حجوزات مرتبطة به");
+    } else {
+      toast.success("تم حذف الكورس");
+      fetchCourses();
+      onCoursesChange?.();
+    }
   };
 
   const openEdit = async (course: any) => {
@@ -195,6 +224,13 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
     const { data } = await supabase.from("group_session_schedules")
       .select("*").eq("lesson_id", course.id).order("session_number");
     setCourseSessions(data ?? []);
+
+    // Get enrolled count
+    const { count } = await supabase.from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("lesson_id", course.id)
+      .in("status", ["pending", "accepted", "scheduled"]);
+    setEnrolledInManaging(count ?? 0);
   };
 
   const handleStartSession = async (session: any) => {
@@ -236,6 +272,12 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
     openManageSessions(managingCourse);
   };
 
+  const handleDeleteSession = async (session: any) => {
+    await supabase.from("group_session_schedules").delete().eq("id", session.id);
+    toast.success("تم حذف الحصة");
+    openManageSessions(managingCourse);
+  };
+
   const handleUploadSessionRecording = async (session: any) => {
     const input = document.createElement("input");
     input.type = "file";
@@ -271,87 +313,150 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
     return map[s] ?? s;
   };
   const sessionStatusColor = (s: string) => {
-    const map: Record<string, string> = { pending: "bg-muted text-muted-foreground", active: "bg-primary/10 text-primary", completed: "bg-success/10 text-success" };
+    const map: Record<string, string> = { pending: "bg-muted text-muted-foreground", active: "bg-primary/10 text-primary", completed: "bg-green-100 text-green-700" };
     return map[s] ?? "";
   };
+
+  const completedSessions = courseSessions.filter(s => s.status === "completed").length;
+  const activeSessions = courseSessions.filter(s => s.status === "active").length;
+  const scheduledSessions = courseSessions.filter(s => s.scheduled_at).length;
 
   // Session management view
   if (managingCourse) {
     return (
-      <div>
-        <button onClick={() => setManagingCourse(null)} className="text-sm text-primary flex items-center gap-1 mb-4">
+      <div dir="rtl">
+        <button onClick={() => { setManagingCourse(null); fetchCourses(); }} className="text-sm text-primary flex items-center gap-1 mb-4">
           <ArrowRight className="h-4 w-4" />
           رجوع للكورسات
         </button>
-        <h2 className="text-lg font-bold mb-2">{managingCourse.title}</h2>
-        <p className="text-xs text-muted-foreground mb-4">إدارة حصص الكورس - {courseSessions.length} حصة</p>
+        <h2 className="text-lg font-bold mb-1">{managingCourse.title}</h2>
+        
+        {/* Course stats */}
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="bg-primary/5 rounded-lg p-3 text-center">
+            <p className="text-lg font-bold text-primary">{enrolledInManaging}</p>
+            <p className="text-[10px] text-muted-foreground">طالب منتسب</p>
+          </div>
+          <div className="bg-green-50 rounded-lg p-3 text-center">
+            <p className="text-lg font-bold text-green-700">{completedSessions}</p>
+            <p className="text-[10px] text-muted-foreground">حصة منتهية</p>
+          </div>
+          <div className="bg-muted rounded-lg p-3 text-center">
+            <p className="text-lg font-bold">{scheduledSessions}</p>
+            <p className="text-[10px] text-muted-foreground">حصة مجدولة</p>
+          </div>
+        </div>
         
         <div className="space-y-3">
-          {courseSessions.filter(s => s.scheduled_at).map((session) => (
-            <div key={session.id} className="bg-card rounded-xl p-4 border border-border">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <h3 className="font-semibold text-sm">حصة {session.session_number}</h3>
-                  <p className="text-xs text-muted-foreground">{new Date(session.scheduled_at).toLocaleString("ar")}</p>
+          {courseSessions.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">لا توجد حصص مجدولة لهذا الكورس</p>
+          ) : (
+            courseSessions.map((session) => (
+              <div key={session.id} className="bg-card rounded-xl p-4 border border-border">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-sm">حصة {session.session_number}</h3>
+                    {session.scheduled_at ? (
+                      <p className="text-xs text-muted-foreground">{new Date(session.scheduled_at).toLocaleString("ar")}</p>
+                    ) : (
+                      <p className="text-xs text-orange-500">لم يتم تحديد الموعد</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${sessionStatusColor(session.status)}`}>
+                      {sessionStatusLabel(session.status)}
+                    </span>
+                    {session.status === "pending" && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>حذف الحصة</AlertDialogTitle>
+                            <AlertDialogDescription>هل أنت متأكد من حذف الحصة {session.session_number}؟</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDeleteSession(session)}>حذف</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${sessionStatusColor(session.status)}`}>
-                  {sessionStatusLabel(session.status)}
-                </span>
-              </div>
 
-              {/* Start session */}
-              {session.status === "pending" && (
-                <Button size="sm" variant="hero" className="w-full mb-2"
-                  disabled={startingSessionId === session.id}
-                  onClick={() => handleStartSession(session)}>
-                  {startingSessionId === session.id ? (
-                    <><Loader2 className="h-4 w-4 ml-2 animate-spin" />جاري إنشاء الرابط...</>
-                  ) : (
-                    <><Video className="h-4 w-4 ml-2" />بدء الحصة (إنشاء رابط زوم)</>
-                  )}
-                </Button>
-              )}
-
-              {/* Active session - show zoom link and end button */}
-              {session.status === "active" && (
-                <>
-                  {session.zoom_start_url && (
-                    <a href={session.zoom_start_url} target="_blank" rel="noopener noreferrer">
-                      <Button size="sm" variant="hero" className="w-full mb-2">
-                        <Video className="h-4 w-4 ml-2" />
-                        دخول الحصة (زوم)
-                      </Button>
-                    </a>
-                  )}
-                  <Button size="sm" variant="outline" className="w-full mb-2 text-success border-success/30 hover:bg-success/10"
-                    onClick={() => handleEndSession(session)}>
-                    <CheckCircle className="h-4 w-4 ml-2" />
-                    إنهاء الحصة
+                {/* Start session - show for pending sessions with a scheduled date */}
+                {session.status === "pending" && session.scheduled_at && (
+                  <Button size="sm" variant="hero" className="w-full mb-2"
+                    disabled={startingSessionId === session.id}
+                    onClick={() => handleStartSession(session)}>
+                    {startingSessionId === session.id ? (
+                      <><Loader2 className="h-4 w-4 ml-2 animate-spin" />جاري إنشاء الرابط...</>
+                    ) : (
+                      <><PlayCircle className="h-4 w-4 ml-2" />بدء الحصة (إنشاء رابط زوم)</>
+                    )}
                   </Button>
-                </>
-              )}
+                )}
 
-              {/* Completed - upload recording or show status */}
-              {session.status === "completed" && !session.recording_url && (
-                <Button size="sm" variant="outline" className="w-full mb-2 text-primary border-primary/30 hover:bg-primary/10"
-                  onClick={() => handleUploadSessionRecording(session)}
-                  disabled={uploadingSessionId === session.id}>
-                  {uploadingSessionId === session.id ? (
-                    <><Loader2 className="h-4 w-4 ml-2 animate-spin" />جاري الرفع...</>
-                  ) : (
-                    <><Upload className="h-4 w-4 ml-2" />رفع تسجيل الحصة</>
-                  )}
-                </Button>
-              )}
+                {/* Pending without date - prompt to set date */}
+                {session.status === "pending" && !session.scheduled_at && (
+                  <p className="text-xs text-orange-500 bg-orange-50 rounded-lg p-2 text-center">
+                    يرجى تعديل الكورس وتحديد موعد هذه الحصة أولاً
+                  </p>
+                )}
 
-              {session.status === "completed" && session.recording_url && (
-                <div className="flex items-center gap-2 text-sm text-success">
-                  <CheckCircle className="h-4 w-4" />
-                  <span>تم رفع التسجيل</span>
-                </div>
-              )}
-            </div>
-          ))}
+                {/* Active session - show zoom link and end button */}
+                {session.status === "active" && (
+                  <>
+                    {session.zoom_start_url && (
+                      <a href={session.zoom_start_url} target="_blank" rel="noopener noreferrer">
+                        <Button size="sm" variant="hero" className="w-full mb-2">
+                          <Video className="h-4 w-4 ml-2" />
+                          دخول الحصة (زوم)
+                        </Button>
+                      </a>
+                    )}
+                    {session.zoom_join_url && (
+                      <div className="bg-muted rounded-lg p-2 mb-2">
+                        <p className="text-[10px] text-muted-foreground mb-1">رابط الدخول للطلاب:</p>
+                        <p className="text-xs break-all font-mono">{session.zoom_join_url}</p>
+                      </div>
+                    )}
+                    <Button size="sm" variant="outline" className="w-full mb-2 text-green-700 border-green-300 hover:bg-green-50"
+                      onClick={() => handleEndSession(session)}>
+                      <CheckCircle className="h-4 w-4 ml-2" />
+                      إنهاء الحصة
+                    </Button>
+                  </>
+                )}
+
+                {/* Completed - upload recording or show status */}
+                {session.status === "completed" && (
+                  <div className="space-y-2">
+                    {!session.recording_url ? (
+                      <Button size="sm" variant="outline" className="w-full text-primary border-primary/30 hover:bg-primary/10"
+                        onClick={() => handleUploadSessionRecording(session)}
+                        disabled={uploadingSessionId === session.id}>
+                        {uploadingSessionId === session.id ? (
+                          <><Loader2 className="h-4 w-4 ml-2 animate-spin" />جاري الرفع...</>
+                        ) : (
+                          <><Upload className="h-4 w-4 ml-2" />رفع تسجيل الحصة</>
+                        )}
+                      </Button>
+                    ) : (
+                      <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg p-2">
+                        <CheckCircle className="h-4 w-4" />
+                        <span>تم رفع التسجيل</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
     );
@@ -445,7 +550,7 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
   );
 
   return (
-    <div>
+    <div dir="rtl">
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogTrigger asChild>
           <Button variant="hero" className="mb-4 w-full">
@@ -523,22 +628,40 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
           courses.map((c) => (
             <div key={c.id} className="bg-card rounded-xl p-4 border border-border">
               <div className="flex justify-between items-start">
-                <div>
+                <div className="flex-1">
                   <h3 className="font-semibold">{c.title}</h3>
                   <p className="text-xs text-muted-foreground">{c.duration_minutes} دقيقة • {format(c.price)}</p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1"><Users className="h-3 w-3" />{c.expected_students} طلاب</span>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                    <span className="flex items-center gap-1"><Users className="h-3 w-3" />{c.expected_students} متوقع</span>
+                    <span className="flex items-center gap-1 text-primary font-medium"><Users className="h-3 w-3" />{enrolledCounts[c.id] ?? 0} منتسب</span>
                     <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />{c.total_sessions} حصة</span>
                     {c.course_start_date && (
                       <span>بداية: {new Date(c.course_start_date).toLocaleDateString("ar")}</span>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => openEdit(c)}>
+                <div className="flex items-center gap-1">
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(c)}>
                     <Edit className="h-4 w-4" />
                   </Button>
-                  <span className={`text-xs px-2 py-1 rounded-full ${c.is_active ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>حذف الكورس</AlertDialogTitle>
+                        <AlertDialogDescription>هل أنت متأكد من حذف كورس "{c.title}"؟ سيتم حذف جميع الحصص المرتبطة.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDeleteCourse(c.id)}>حذف</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  <span className={`text-xs px-2 py-1 rounded-full ${c.is_active ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
                     {c.is_active ? "نشط" : "غير نشط"}
                   </span>
                 </div>
