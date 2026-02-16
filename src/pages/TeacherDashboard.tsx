@@ -871,22 +871,30 @@ export default function TeacherDashboard() {
           </TabsContent>
 
           <TabsContent value="earnings" className="mt-4 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-card rounded-xl p-4 border border-border text-center">
-                <DollarSign className="h-6 w-6 mx-auto text-success mb-1" />
-                <p className="text-xl font-bold">{format(earnings)}</p>
-                <p className="text-[10px] text-muted-foreground">إجمالي الأرباح من المنصة</p>
+            {/* Withdrawal form at top */}
+            <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+              <h3 className="font-semibold">طلب سحب أرباح</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="text-center">
+                  <p className="text-xl font-bold text-success">{format(withdrawableBalance)}</p>
+                  <p className="text-[10px] text-muted-foreground">الرصيد القابل للسحب</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold">{format(earnings)}</p>
+                  <p className="text-[10px] text-muted-foreground">إجمالي الأرباح</p>
+                </div>
               </div>
-              <div className="bg-card rounded-xl p-4 border border-border text-center">
-                <DollarSign className="h-6 w-6 mx-auto text-primary mb-1" />
-                <p className="text-xl font-bold">{format(withdrawableBalance)}</p>
-                <p className="text-[10px] text-muted-foreground">رصيد الأرباح القابل للسحب</p>
+              <div className="bg-muted/50 rounded-lg p-2 text-xs text-muted-foreground text-center">
+                نسبة عمولة المنصة: {commissionRate}% — يتم خصمها تلقائياً عند إتمام كل حصة
               </div>
-            </div>
-            <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground text-center">
-              نسبة عمولة المنصة: {commissionRate}% — يتم خصمها تلقائياً عند إتمام كل حصة
+              <Input type="number" placeholder={`المبلغ بـ ${currency.symbol}`} value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} />
+              <Button onClick={handleWithdraw} variant="hero" className="w-full">
+                <DollarSign className="h-4 w-4 ml-1" />
+                طلب سحب
+              </Button>
             </div>
 
+            {/* Earnings log */}
             {accountingRecords.length > 0 && (
               <div className="bg-card rounded-xl p-4 border border-border space-y-3">
                 <h3 className="font-semibold text-sm">سجل الأرباح</h3>
@@ -907,33 +915,34 @@ export default function TeacherDashboard() {
               </div>
             )}
 
-            <div className="bg-card rounded-xl p-4 border border-border space-y-3">
-              <h3 className="font-semibold">طلب سحب</h3>
-              <Input type="number" placeholder={`المبلغ بـ ${currency.symbol}`} value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} />
-              <Button onClick={handleWithdraw} variant="hero" className="w-full">طلب سحب</Button>
-            </div>
-
-            <div className="space-y-2">
-              <h3 className="font-semibold">طلبات السحب السابقة</h3>
-              {withdrawals.map((w) => (
-                <div key={w.id} className="p-3 rounded-lg border border-border space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <span className="font-medium">{format(w.amount)}</span>
-                      <p className="text-xs text-muted-foreground">{new Date(w.created_at).toLocaleDateString("ar", { year: "numeric", month: "long", day: "numeric" })}</p>
+            {/* Previous withdrawals - collapsible */}
+            {withdrawals.length > 0 && (
+              <details className="bg-card rounded-xl border border-border">
+                <summary className="p-4 font-semibold cursor-pointer select-none flex items-center justify-between">
+                  <span>طلبات السحب السابقة ({withdrawals.length})</span>
+                </summary>
+                <div className="px-4 pb-4 space-y-2">
+                  {withdrawals.map((w) => (
+                    <div key={w.id} className="p-3 rounded-lg border border-border space-y-2">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="font-medium">{format(w.amount)}</span>
+                          <p className="text-xs text-muted-foreground">{new Date(w.created_at).toLocaleDateString("ar", { year: "numeric", month: "long", day: "numeric" })}</p>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full ${w.status === "approved" ? "bg-success/10 text-success" : w.status === "rejected" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
+                          {w.status === "pending" ? "قيد المراجعة" : w.status === "approved" ? "مقبول" : "مرفوض"}
+                        </span>
+                      </div>
+                      {w.status === "approved" && (w as any).receipt_url && (
+                        <a href={(w as any).receipt_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline flex items-center gap-1">
+                          عرض إيصال التحويل
+                        </a>
+                      )}
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${w.status === "approved" ? "bg-success/10 text-success" : w.status === "rejected" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
-                      {w.status === "pending" ? "قيد المراجعة" : w.status === "approved" ? "مقبول" : "مرفوض"}
-                    </span>
-                  </div>
-                  {w.status === "approved" && (w as any).receipt_url && (
-                    <a href={(w as any).receipt_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline flex items-center gap-1">
-                      عرض إيصال التحويل
-                    </a>
-                  )}
+                  ))}
                 </div>
-              ))}
-            </div>
+              </details>
+            )}
           </TabsContent>
         </Tabs>
       </div>
