@@ -146,8 +146,10 @@ serve(async (req) => {
     if (onesignal?.enabled && onesignal.app_id && onesignal.rest_api_key) {
       try {
         let osPayload: any;
-        if (type === "broadcast" && broadcast_target === "all") {
-          // Send to all subscribed users via segments
+        if (type === "broadcast") {
+          // For all broadcast types, use "Subscribed Users" segment
+          // OneSignal doesn't know about our role system, so we broadcast to all
+          // Role-based filtering is handled by in-app notifications
           osPayload = {
             app_id: onesignal.app_id,
             included_segments: ["Subscribed Users"],
@@ -155,7 +157,7 @@ serve(async (req) => {
             contents: { en: body || "", ar: body || "" },
             data: { type, url: "/" },
           };
-        } else {
+        } else if (targetUserIds.length > 0) {
           osPayload = {
             app_id: onesignal.app_id,
             include_aliases: {
