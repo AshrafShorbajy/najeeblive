@@ -232,6 +232,15 @@ export default function AdminDashboard() {
         if (s.key === "homepage_sections_order" && Array.isArray(s.value)) {
           setHomepageSectionsOrder(s.value as any);
         }
+        if (s.key === "zoom_settings" && typeof s.value === "object" && s.value !== null) {
+          const v = s.value as any;
+          setZoomSettings({
+            recording_mode: v.recording_mode || "manual",
+            cloud_account_id: v.cloud_account_id || "",
+            cloud_client_id: v.cloud_client_id || "",
+            cloud_client_secret: v.cloud_client_secret || "",
+          });
+        }
       }
     }
   };
@@ -457,6 +466,13 @@ export default function AdminDashboard() {
       updates.push(supabase.from("site_settings").update({ value: homepageSectionsOrder } as any).eq("key", "homepage_sections_order"));
     } else {
       updates.push(supabase.from("site_settings").insert({ key: "homepage_sections_order", value: homepageSectionsOrder } as any) as any);
+    }
+    // Upsert zoom_settings
+    const { data: existingZoom } = await supabase.from("site_settings").select("id").eq("key", "zoom_settings").maybeSingle();
+    if (existingZoom) {
+      updates.push(supabase.from("site_settings").update({ value: zoomSettings } as any).eq("key", "zoom_settings"));
+    } else {
+      updates.push(supabase.from("site_settings").insert({ key: "zoom_settings", value: zoomSettings } as any) as any);
     }
     const results = await Promise.all(updates);
     const hasError = results.some(r => r.error);
@@ -922,7 +938,6 @@ export default function AdminDashboard() {
                        {settingsSubTab === "contact" && "تواصل معنا"}
                        {settingsSubTab === "homepage" && "ترتيب الصفحة الرئيسية"}
                        {settingsSubTab === "zoom" && "إعدادات زوم"}
-                      {settingsSubTab === "homepage" && "ترتيب الصفحة الرئيسية"}
                     </span>
                     <ChevronDown className="h-3 w-3" />
                   </Button>
@@ -1359,6 +1374,104 @@ export default function AdminDashboard() {
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {/* إعدادات زوم */}
+              {settingsSubTab === "zoom" && (
+                <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <Video className="h-4 w-4 text-primary" />
+                    إعدادات زوم
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    اختر طريقة حفظ تسجيلات الحصص. يمكنك تفعيل التسجيل السحابي إذا كنت مشتركاً في خطة زوم مدفوعة.
+                  </p>
+
+                  {/* Recording Mode Selection */}
+                  <div className="space-y-3">
+                    <Label className="text-xs font-semibold">طريقة التسجيل</Label>
+                    <div className="space-y-2">
+                      <div
+                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${zoomSettings.recording_mode === "manual" ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}
+                        onClick={() => setZoomSettings(prev => ({ ...prev, recording_mode: "manual" }))}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${zoomSettings.recording_mode === "manual" ? "border-primary" : "border-muted-foreground"}`}>
+                            {zoomSettings.recording_mode === "manual" && <div className="h-2 w-2 rounded-full bg-primary" />}
+                          </div>
+                          <span className="font-medium text-sm">رفع يدوي</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 mr-6">
+                          يقوم المعلم بتسجيل الحصة على جهازه ثم يرفع ملف الفيديو يدوياً بعد انتهاء الحصة
+                        </p>
+                      </div>
+                      <div
+                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${zoomSettings.recording_mode === "cloud" ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}
+                        onClick={() => setZoomSettings(prev => ({ ...prev, recording_mode: "cloud" }))}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${zoomSettings.recording_mode === "cloud" ? "border-primary" : "border-muted-foreground"}`}>
+                            {zoomSettings.recording_mode === "cloud" && <div className="h-2 w-2 rounded-full bg-primary" />}
+                          </div>
+                          <span className="font-medium text-sm">تسجيل سحابي تلقائي</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 mr-6">
+                          يتم حفظ التسجيل تلقائياً في سيرفر زوم السحابي ويُعرض للطالب مباشرة بعد انتهاء الحصة (يتطلب اشتراك زوم مدفوع)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cloud API Settings */}
+                  {zoomSettings.recording_mode === "cloud" && (
+                    <div className="space-y-3 border-t border-border pt-4">
+                      <h4 className="font-semibold text-sm flex items-center gap-2">
+                        <Settings className="h-4 w-4 text-muted-foreground" />
+                        إعدادات API زوم (Server-to-Server OAuth)
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        أدخل بيانات تطبيق زوم الخاص بك من{" "}
+                        <a href="https://marketplace.zoom.us" target="_blank" rel="noopener noreferrer" className="text-primary underline">Zoom Marketplace</a>
+                      </p>
+                      <div>
+                        <Label className="text-xs">Account ID</Label>
+                        <Input
+                          dir="ltr"
+                          placeholder="أدخل Account ID"
+                          value={zoomSettings.cloud_account_id}
+                          onChange={e => setZoomSettings(prev => ({ ...prev, cloud_account_id: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Client ID</Label>
+                        <Input
+                          dir="ltr"
+                          placeholder="أدخل Client ID"
+                          value={zoomSettings.cloud_client_id}
+                          onChange={e => setZoomSettings(prev => ({ ...prev, cloud_client_id: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Client Secret</Label>
+                        <Input
+                          dir="ltr"
+                          type="password"
+                          placeholder="أدخل Client Secret"
+                          value={zoomSettings.cloud_client_secret}
+                          onChange={e => setZoomSettings(prev => ({ ...prev, cloud_client_secret: e.target.value }))}
+                        />
+                      </div>
+                      <div className="bg-warning/10 rounded-lg p-3 text-xs text-warning space-y-1">
+                        <p className="font-semibold">⚠️ ملاحظات مهمة:</p>
+                        <ul className="list-disc list-inside space-y-0.5">
+                          <li>يجب أن يكون لديك اشتراك Zoom Pro أو أعلى لاستخدام التسجيل السحابي</li>
+                          <li>تأكد من تفعيل صلاحية "Cloud Recording" في تطبيقك</li>
+                          <li>سيتم تغيير إعداد التسجيل التلقائي لـ "cloud" في اجتماعات زوم</li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

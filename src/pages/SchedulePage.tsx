@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -12,6 +13,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 
 export default function SchedulePage() {
   const { user, isTeacher } = useAuthContext();
+  const navigate = useNavigate();
   const { format } = useCurrency();
   const [bookings, setBookings] = useState<any[]>([]);
   const [chatBookingId, setChatBookingId] = useState<string | null>(null);
@@ -238,9 +240,13 @@ export default function SchedulePage() {
             </div>
             {/* Installment payment warning */}
             {(viewingCourse as any).is_installment && paidSessions < (viewingCourse.lessons?.total_sessions || 0) && (
-              <div className="mt-3 p-3 rounded-lg bg-warning/10 border border-warning/20 text-sm">
+              <div className="mt-3 p-3 rounded-lg bg-warning/10 border border-warning/20 text-sm space-y-2">
                 <p className="font-semibold text-warning mb-1">⚠️ يجب دفع الدفعة التالية</p>
                 <p className="text-xs text-muted-foreground">الحصص المدفوعة: {paidSessions} من {viewingCourse.lessons?.total_sessions}</p>
+                <Button size="sm" variant="hero" className="w-full"
+                  onClick={() => navigate(`/lesson/${viewingCourse.lesson_id}`)}>
+                  <CreditCard className="h-4 w-4 ml-2" />دفع الدفعة التالية
+                </Button>
               </div>
             )}
           </div>
