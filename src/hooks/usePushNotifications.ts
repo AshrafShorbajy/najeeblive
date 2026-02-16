@@ -66,21 +66,17 @@ export function usePushNotifications() {
     const p256dh = json.keys!.p256dh!;
     const auth = json.keys!.auth!;
 
-    // Upsert by endpoint to avoid duplicates
-    const { data: existing } = await supabase
+    // Upsert: if endpoint exists (same device, different user), update owner
+    // Uses the unique constraint on endpoint
+    const { error } = await supabase
       .from("push_subscriptions")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("endpoint", endpoint)
-      .maybeSingle();
+      .upsert(
+        { user_id: user.id, endpoint, p256dh, auth },
+        { onConflict: "endpoint" }
+      );
 
-    if (!existing) {
-      await supabase.from("push_subscriptions").insert({
-        user_id: user.id,
-        endpoint,
-        p256dh,
-        auth,
-      });
+    if (error) {
+      console.error("Failed to save push subscription:", error);
     }
   };
 
