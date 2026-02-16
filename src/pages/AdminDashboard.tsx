@@ -78,6 +78,15 @@ export default function AdminDashboard() {
   const [lessonTypesVisibility, setLessonTypesVisibility] = useState<Record<string, boolean>>({ tutoring: true, bag_review: true, group: true, skills: true });
 const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "cloud"; cloud_account_id: string; cloud_client_id: string; cloud_client_secret: string }>({ recording_mode: "manual", cloud_account_id: "", cloud_client_id: "", cloud_client_secret: "" });
   const [onesignalSettings, setOnesignalSettings] = useState<{ enabled: boolean; app_id: string; rest_api_key: string }>({ enabled: false, app_id: "", rest_api_key: "" });
+  const [themeSettings, setThemeSettings] = useState<{
+    body_font_size: string; body_font_color: string;
+    heading_font_size: string; heading_font_color: string;
+    primary_color: string; secondary_color: string; background_color: string;
+  }>({
+    body_font_size: "16", body_font_color: "#1a1a2e",
+    heading_font_size: "20", heading_font_color: "#1a1a2e",
+    primary_color: "#2563eb", secondary_color: "#e97a1f", background_color: "#f5f7fa",
+  });
 
   // Badge counters
   const [adminActiveTab, setAdminActiveTab] = useState("curricula");
@@ -269,6 +278,9 @@ const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "c
             app_id: v.app_id || "",
             rest_api_key: v.rest_api_key || "",
           });
+        }
+        if (s.key === "theme_settings" && typeof s.value === "object" && s.value !== null) {
+          setThemeSettings(prev => ({ ...prev, ...(s.value as any) }));
         }
       }
     }
@@ -517,6 +529,13 @@ const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "c
       updates.push(supabase.from("site_settings").update({ value: onesignalSettings } as any).eq("key", "onesignal_settings"));
     } else {
       updates.push(supabase.from("site_settings").insert({ key: "onesignal_settings", value: onesignalSettings } as any) as any);
+    }
+    // Upsert theme_settings
+    const { data: existingTheme } = await supabase.from("site_settings").select("id").eq("key", "theme_settings").maybeSingle();
+    if (existingTheme) {
+      updates.push(supabase.from("site_settings").update({ value: themeSettings } as any).eq("key", "theme_settings"));
+    } else {
+      updates.push(supabase.from("site_settings").insert({ key: "theme_settings", value: themeSettings } as any) as any);
     }
     const results = await Promise.all(updates);
     const hasError = results.some(r => r.error);
@@ -1175,6 +1194,88 @@ const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "c
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  {/* ألوان وخطوط */}
+                  <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                    <h3 className="font-semibold text-sm flex items-center gap-2">
+                      <Palette className="h-4 w-4 text-primary" />
+                      ألوان وخطوط
+                    </h3>
+
+                    {/* الخطوط */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-medium text-muted-foreground">الخطوط</h4>
+                      <div className="border border-border rounded-lg p-3 space-y-3">
+                        <p className="text-xs font-medium">خط المحتوى الرئيسي</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">حجم الخط (px)</Label>
+                            <Input type="number" min="12" max="24" value={themeSettings.body_font_size} onChange={e => setThemeSettings(prev => ({ ...prev, body_font_size: e.target.value }))} />
+                          </div>
+                          <div>
+                            <Label className="text-xs">لون الخط</Label>
+                            <div className="flex items-center gap-2">
+                              <input type="color" value={themeSettings.body_font_color} onChange={e => setThemeSettings(prev => ({ ...prev, body_font_color: e.target.value }))} className="h-10 w-10 rounded border border-border cursor-pointer" />
+                              <Input dir="ltr" value={themeSettings.body_font_color} onChange={e => setThemeSettings(prev => ({ ...prev, body_font_color: e.target.value }))} className="font-mono text-xs" />
+                            </div>
+                          </div>
+                        </div>
+                        <p style={{ fontSize: `${themeSettings.body_font_size}px`, color: themeSettings.body_font_color }}>معاينة: هذا نص تجريبي للمحتوى الرئيسي</p>
+                      </div>
+
+                      <div className="border border-border rounded-lg p-3 space-y-3">
+                        <p className="text-xs font-medium">خط العناوين</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">حجم الخط (px)</Label>
+                            <Input type="number" min="14" max="36" value={themeSettings.heading_font_size} onChange={e => setThemeSettings(prev => ({ ...prev, heading_font_size: e.target.value }))} />
+                          </div>
+                          <div>
+                            <Label className="text-xs">لون الخط</Label>
+                            <div className="flex items-center gap-2">
+                              <input type="color" value={themeSettings.heading_font_color} onChange={e => setThemeSettings(prev => ({ ...prev, heading_font_color: e.target.value }))} className="h-10 w-10 rounded border border-border cursor-pointer" />
+                              <Input dir="ltr" value={themeSettings.heading_font_color} onChange={e => setThemeSettings(prev => ({ ...prev, heading_font_color: e.target.value }))} className="font-mono text-xs" />
+                            </div>
+                          </div>
+                        </div>
+                        <p style={{ fontSize: `${themeSettings.heading_font_size}px`, color: themeSettings.heading_font_color, fontWeight: 700 }}>معاينة: عنوان تجريبي</p>
+                      </div>
+                    </div>
+
+                    {/* الألوان */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-medium text-muted-foreground">ألوان الموقع</h4>
+                      <div className="grid grid-cols-1 gap-3">
+                        <div className="border border-border rounded-lg p-3 space-y-2">
+                          <p className="text-xs font-medium">اللون الرئيسي</p>
+                          <p className="text-[10px] text-muted-foreground">يُطبق على قوائم أنواع الدروس والأزرار الرئيسية</p>
+                          <div className="flex items-center gap-2">
+                            <input type="color" value={themeSettings.primary_color} onChange={e => setThemeSettings(prev => ({ ...prev, primary_color: e.target.value }))} className="h-10 w-10 rounded border border-border cursor-pointer" />
+                            <Input dir="ltr" value={themeSettings.primary_color} onChange={e => setThemeSettings(prev => ({ ...prev, primary_color: e.target.value }))} className="font-mono text-xs" />
+                            <div className="h-8 w-16 rounded" style={{ backgroundColor: themeSettings.primary_color }} />
+                          </div>
+                        </div>
+                        <div className="border border-border rounded-lg p-3 space-y-2">
+                          <p className="text-xs font-medium">اللون الفرعي</p>
+                          <p className="text-[10px] text-muted-foreground">يُطبق على الشارات مثل "هذه الحصة اونلاين عبر زوم"</p>
+                          <div className="flex items-center gap-2">
+                            <input type="color" value={themeSettings.secondary_color} onChange={e => setThemeSettings(prev => ({ ...prev, secondary_color: e.target.value }))} className="h-10 w-10 rounded border border-border cursor-pointer" />
+                            <Input dir="ltr" value={themeSettings.secondary_color} onChange={e => setThemeSettings(prev => ({ ...prev, secondary_color: e.target.value }))} className="font-mono text-xs" />
+                            <div className="h-8 w-16 rounded" style={{ backgroundColor: themeSettings.secondary_color }} />
+                          </div>
+                        </div>
+                        <div className="border border-border rounded-lg p-3 space-y-2">
+                          <p className="text-xs font-medium">لون الخلفية</p>
+                          <p className="text-[10px] text-muted-foreground">لون خلفية الموقع العام</p>
+                          <div className="flex items-center gap-2">
+                            <input type="color" value={themeSettings.background_color} onChange={e => setThemeSettings(prev => ({ ...prev, background_color: e.target.value }))} className="h-10 w-10 rounded border border-border cursor-pointer" />
+                            <Input dir="ltr" value={themeSettings.background_color} onChange={e => setThemeSettings(prev => ({ ...prev, background_color: e.target.value }))} className="font-mono text-xs" />
+                            <div className="h-8 w-16 rounded border border-border" style={{ backgroundColor: themeSettings.background_color }} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
