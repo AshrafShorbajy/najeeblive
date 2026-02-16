@@ -27,17 +27,57 @@ export function useOneSignal() {
 
       // Median.co JavaScript Bridge for OneSignal
       const median = (window as any).median;
-      if (median?.onesignal) {
-        try {
-          // Set external user ID so push notifications target this user
+      if (!median?.onesignal) return;
+
+      try {
+        // Use the modern login method (OneSignal SDK v5+)
+        // This replaces the deprecated externalUserId.set()
+        if (typeof median.onesignal.login === "function") {
+          median.onesignal.login(user.id);
+          console.log("OneSignal login called with user ID:", user.id);
+        } else if (median.onesignal.externalUserId) {
+          // Fallback for older SDK versions
           median.onesignal.externalUserId.set({ externalId: user.id });
-          console.log("OneSignal external user ID set:", user.id);
-        } catch (err) {
-          console.warn("OneSignal bridge error:", err);
+          console.log("OneSignal externalUserId.set called:", user.id);
         }
+
+        // Retrieve OneSignal info to verify subscription
+        if (typeof median.onesignal.info === "function") {
+          median.onesignal.info().then((info: any) => {
+            console.log("OneSignal info:", JSON.stringify(info));
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.warn("OneSignal bridge error:", err);
       }
     };
 
+    // Define global callback for OneSignal info (called on each page load by Median)
+    (window as any).median_onesignal_info = (info: any) => {
+      console.log("OneSignal info callback:", JSON.stringify(info));
+    };
+
     setupOneSignal();
+
+    return () => {
+      delete (window as any).median_onesignal_info;
+    };
+  }, [user]);
+
+  // Handle logout - clear OneSignal external ID
+  useEffect(() => {
+    if (user) return;
+
+    const median = (window as any).median;
+    if (median?.onesignal) {
+      try {
+        if (typeof median.onesignal.logout === "function") {
+          median.onesignal.logout();
+          console.log("OneSignal logout called");
+        }
+      } catch {
+        // ignore
+      }
+    }
   }, [user]);
 }
