@@ -325,22 +325,37 @@ export type Database = {
           created_at: string
           id: string
           lesson_id: string
+          recording_url: string | null
           scheduled_at: string | null
           session_number: number
+          status: string
+          zoom_join_url: string | null
+          zoom_meeting_id: string | null
+          zoom_start_url: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           lesson_id: string
+          recording_url?: string | null
           scheduled_at?: string | null
           session_number: number
+          status?: string
+          zoom_join_url?: string | null
+          zoom_meeting_id?: string | null
+          zoom_start_url?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           lesson_id?: string
+          recording_url?: string | null
           scheduled_at?: string | null
           session_number?: number
+          status?: string
+          zoom_join_url?: string | null
+          zoom_meeting_id?: string | null
+          zoom_start_url?: string | null
         }
         Relationships: [
           {
