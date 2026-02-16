@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { uploadFileCompat } from "@/lib/uploadFile";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 export default function LessonDetailPage() {
@@ -208,17 +209,16 @@ export default function LessonDetailPage() {
     let receiptUrl = null;
 
     if (paymentMethod === "bank_transfer" && receiptFile) {
-      const path = `${user.id}/${Date.now()}-${receiptFile.name}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("uploads")
-        .upload(path, receiptFile);
-      if (uploadError) {
+      try {
+        const path = `${user.id}/${Date.now()}-${receiptFile.name}`;
+        const { publicUrl } = await uploadFileCompat("uploads", path, receiptFile);
+        receiptUrl = publicUrl;
+      } catch (e) {
+        console.error("Receipt upload error:", e);
         toast.error("خطأ في رفع الإيصال");
         setBuying(false);
         return;
       }
-      const { data: { publicUrl } } = supabase.storage.from("uploads").getPublicUrl(path);
-      receiptUrl = publicUrl;
     }
 
     const isInstallment = lesson.lesson_type === "group" && paymentPlan === "installment" && installmentInfo;

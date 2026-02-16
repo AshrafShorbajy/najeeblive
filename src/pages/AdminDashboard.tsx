@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { uploadFileCompat } from "@/lib/uploadFile";
 import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench, ImagePlus, Globe, ChevronDown, Palette, CreditCard, Percent, ShieldOff, Eye, Video, Bell } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -311,14 +312,15 @@ const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "c
       setUploadingReceipt(true);
       const ext = withdrawalReceiptFile.name.split(".").pop();
       const filePath = `withdrawal-receipts/${id}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("uploads").upload(filePath, withdrawalReceiptFile, { upsert: true });
-      if (uploadError) {
+      try {
+        const { publicUrl } = await uploadFileCompat("uploads", filePath, withdrawalReceiptFile, { upsert: true });
+        await supabase.from("withdrawal_requests").update({ status, receipt_url: publicUrl } as any).eq("id", id);
+      } catch (e) {
+        console.error("Upload error:", e);
         toast.error("فشل رفع الإيصال");
         setUploadingReceipt(false);
         return;
       }
-      const { data: urlData } = supabase.storage.from("uploads").getPublicUrl(filePath);
-      await supabase.from("withdrawal_requests").update({ status, receipt_url: urlData.publicUrl } as any).eq("id", id);
       setWithdrawalReceiptFile(null);
       setUploadingReceipt(false);
 

@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { VideoPlayer } from "@/components/schedule/VideoPlayer";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { uploadFileCompat } from "@/lib/uploadFile";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
@@ -210,9 +211,7 @@ export default function SchedulePage() {
     setPaying(true);
     try {
       const path = `${user.id}/${Date.now()}-${receiptFile.name}`;
-      const { error: uploadError } = await supabase.storage.from("uploads").upload(path, receiptFile);
-      if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from("uploads").getPublicUrl(path);
+      const { publicUrl } = await uploadFileCompat("uploads", path, receiptFile);
 
       // Create installment record (pending admin approval)
       const { error: instError } = await (supabase.from("course_installments" as any) as any).insert({
