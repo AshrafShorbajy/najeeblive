@@ -37,9 +37,23 @@ export function useThemeSettings() {
     const apply = (theme: ThemeSettings) => {
       const root = document.documentElement;
       // Apply CSS custom properties for colors (HSL format for Tailwind)
-      if (theme.primary_color) root.style.setProperty("--primary", hexToHSL(theme.primary_color));
-      if (theme.secondary_color) root.style.setProperty("--secondary", hexToHSL(theme.secondary_color));
-      if (theme.background_color) root.style.setProperty("--background", hexToHSL(theme.background_color));
+      if (theme.primary_color) {
+        const hsl = hexToHSL(theme.primary_color);
+        root.style.setProperty("--primary", hsl);
+        root.style.setProperty("--ring", hsl);
+        root.style.setProperty("--sidebar-primary", hsl);
+        root.style.setProperty("--sidebar-ring", hsl);
+      }
+      if (theme.secondary_color) {
+        const hsl = hexToHSL(theme.secondary_color);
+        root.style.setProperty("--secondary", hsl);
+        root.style.setProperty("--accent", hsl);
+      }
+      if (theme.background_color) {
+        const bgHsl = hexToHSL(theme.background_color);
+        root.style.setProperty("--background", bgHsl);
+        root.style.setProperty("--sidebar-background", bgHsl);
+      }
 
       // Apply font settings via CSS custom properties
       if (theme.body_font_size) root.style.setProperty("--theme-body-font-size", `${theme.body_font_size}px`);
