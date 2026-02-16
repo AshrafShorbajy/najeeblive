@@ -117,11 +117,40 @@ export default function InvoicesManagement() {
     } else {
       // Check if this is a group lesson - if so, set to "scheduled" directly
       const lesson = lessonsMap[selectedInvoice.lesson_id];
+      const booking = bookingsMap[selectedInvoice.booking_id];
       const newStatus = lesson?.lesson_type === "group" ? "scheduled" : "accepted";
+
+      // For installment invoices, update paid_sessions and mark course_installment as paid
+      const bookingUpdate: any = { status: newStatus as any };
+      if (booking?.is_installment && lesson?.lesson_type === "group") {
+        // Calculate sessions per installment
+        const totalSessions = lesson.total_sessions || 0;
+        let numInstallments = 2;
+        if (totalSessions >= 11 && totalSessions <= 20) numInstallments = 4;
+        else if (totalSessions >= 21 && totalSessions <= 50) numInstallments = 6;
+        const sessionsPerInstallment = Math.ceil(totalSessions / numInstallments);
+
+        const newPaidSessions = (booking.paid_sessions || 0) + sessionsPerInstallment;
+        bookingUpdate.paid_sessions = newPaidSessions;
+
+        // Mark the corresponding course_installment as paid
+        const { data: pendingInstallments } = await (supabase.from("course_installments" as any) as any)
+          .select("id")
+          .eq("booking_id", selectedInvoice.booking_id)
+          .eq("status", "pending")
+          .order("installment_number")
+          .limit(1);
+        
+        if (pendingInstallments && pendingInstallments.length > 0) {
+          await (supabase.from("course_installments" as any) as any)
+            .update({ status: "paid", paid_at: new Date().toISOString() })
+            .eq("id", pendingInstallments[0].id);
+        }
+      }
 
       await supabase
         .from("bookings")
-        .update({ status: newStatus as any })
+        .update(bookingUpdate)
         .eq("id", selectedInvoice.booking_id);
 
       // Auto-create conversation for teacher and student
