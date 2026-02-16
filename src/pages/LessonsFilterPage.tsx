@@ -48,7 +48,7 @@ export default function TutoringPage() {
   const isSkills = type === "skills";
   const isGroup = type === "group";
 
-  const pageTitle = isTutoring ? "تقوية ومراجعة" : isBagReview ? "مراجعة الشنطة" : isGroup ? "دروس جماعية" : "مهارات ومواهب";
+  const pageTitle = isTutoring ? "دروس فردية" : isBagReview ? "مراجعة الشنطة" : isGroup ? "دروس جماعية" : "مهارات ومواهب";
   const lessonType = isTutoring ? "tutoring" : isBagReview ? "bag_review" : isGroup ? "group" : "skills";
 
   // Load profile data to pre-fill filters for students
