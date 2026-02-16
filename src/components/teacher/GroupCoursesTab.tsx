@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 import { Plus, Edit, Users, CalendarDays, Video, CheckCircle, Upload, Loader2, ArrowRight, Trash2, PlayCircle } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { validateScheduleSlot } from "@/lib/scheduleValidation";
 
 interface GroupCoursesTabProps {
   userId: string;
@@ -92,6 +93,16 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
     if (newCourse.total_sessions < 5) { toast.error("يجب أن يكون عدد الحصص 5 على الأقل"); return; }
     const filledDates = newCourse.session_dates.filter(d => d.trim() !== "");
     if (filledDates.length < 5) { toast.error("يجب إدخال 5 مواعيد حصص على الأقل لتفعيل الكورس"); return; }
+
+    // Validate each session date for past dates and overlaps
+    for (let i = 0; i < filledDates.length; i++) {
+      const dt = new Date(filledDates[i]);
+      const validationError = await validateScheduleSlot(userId, dt, newCourse.duration_minutes);
+      if (validationError) {
+        toast.error(`الحصة ${i + 1}: ${validationError}`);
+        return;
+      }
+    }
 
     const { data: lessonData, error } = await supabase.from("lessons").insert({
       teacher_id: userId,
@@ -179,6 +190,21 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
 
   const handleSaveEdit = async () => {
     if (!editCourse) return;
+
+    // Validate changed session dates for overlaps
+    for (const sd of editSessionDates) {
+      if (sd.scheduled_at) {
+        const dt = new Date(sd.scheduled_at);
+        const validationError = await validateScheduleSlot(
+          userId, dt, editCourse.duration_minutes || 60,
+          undefined, sd.id // exclude this session from overlap check
+        );
+        if (validationError) {
+          toast.error(`الحصة ${sd.session_number}: ${validationError}`);
+          return;
+        }
+      }
+    }
 
     const { error } = await supabase.from("lessons").update({
       title: editCourse.title,
@@ -312,6 +338,15 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
   };
 
   const handleSaveSessionEdit = async (session: any) => {
+    if (editingSessionDate) {
+      const dt = new Date(editingSessionDate);
+      const duration = managingCourse?.duration_minutes || 60;
+      const validationError = await validateScheduleSlot(userId, dt, duration, undefined, session.id);
+      if (validationError) {
+        toast.error(validationError);
+        return;
+      }
+    }
     const updateData: any = {
       scheduled_at: editingSessionDate ? new Date(editingSessionDate).toISOString() : null,
       title: editingSessionTitle.trim() || null,
