@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { uploadFileCompat, buildReceiptPath } from "@/lib/uploadFile";
+import { uploadFileCompat } from "@/lib/uploadFile";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 export default function LessonDetailPage() {
@@ -210,67 +210,61 @@ export default function LessonDetailPage() {
 
     if (paymentMethod === "bank_transfer" && receiptFile) {
       try {
-        const path = buildReceiptPath(user.id, receiptFile);
+        const path = `${user.id}/${Date.now()}-${receiptFile.name}`;
         const { publicUrl } = await uploadFileCompat("uploads", path, receiptFile);
         receiptUrl = publicUrl;
-      } catch (e: any) {
+      } catch (e) {
         console.error("Receipt upload error:", e);
-        toast.error("خطأ في رفع الإيصال: " + (e?.message || "حاول مرة أخرى"));
+        toast.error("خطأ في رفع الإيصال");
         setBuying(false);
         return;
       }
     }
 
-    try {
-      const isInstallment = lesson.lesson_type === "group" && paymentPlan === "installment" && installmentInfo;
+    const isInstallment = lesson.lesson_type === "group" && paymentPlan === "installment" && installmentInfo;
 
-      const { data: bookingData, error } = await supabase.from("bookings").insert({
+    const { data: bookingData, error } = await supabase.from("bookings").insert({
+      student_id: user.id,
+      lesson_id: lesson.id,
+      teacher_id: lesson.teacher_id,
+      amount: currentPayAmount,
+      payment_method: paymentMethod as any,
+      payment_receipt_url: receiptUrl,
+      status: "pending",
+      ...(isInstallment ? {
+        is_installment: true,
+        total_installments: installmentInfo!.numInstallments,
+        paid_sessions: isInstallment ? installmentInfo!.sessionsPerInstallment : undefined,
+      } : {}),
+    } as any).select().single();
+
+    if (error || !bookingData) {
+      toast.error("حدث خطأ في الحجز");
+    } else {
+      await supabase.from("invoices").insert({
+        booking_id: bookingData.id,
         student_id: user.id,
-        lesson_id: lesson.id,
         teacher_id: lesson.teacher_id,
+        lesson_id: lesson.id,
         amount: currentPayAmount,
-        payment_method: paymentMethod as any,
+        payment_method: paymentMethod,
         payment_receipt_url: receiptUrl,
-        status: "pending",
-        ...(isInstallment ? {
-          is_installment: true,
-          total_installments: installmentInfo!.numInstallments,
-          paid_sessions: isInstallment ? installmentInfo!.sessionsPerInstallment : undefined,
-        } : {}),
-      } as any).select().single();
+      } as any);
 
-      if (error || !bookingData) {
-        console.error("Booking insert error:", error);
-        toast.error("حدث خطأ في الحجز: " + (error?.message || ""));
-      } else {
-        await supabase.from("invoices").insert({
+      if (isInstallment) {
+        await (supabase.from("course_installments" as any) as any).insert({
           booking_id: bookingData.id,
-          student_id: user.id,
-          teacher_id: lesson.teacher_id,
-          lesson_id: lesson.id,
-          amount: currentPayAmount,
-          payment_method: paymentMethod,
-          payment_receipt_url: receiptUrl,
-        } as any);
-
-        if (isInstallment) {
-          await (supabase.from("course_installments" as any) as any).insert({
-            booking_id: bookingData.id,
-            installment_number: 1,
-            amount: installmentInfo!.amountPerInstallment,
-            sessions_unlocked: installmentInfo!.sessionsPerInstallment,
-            status: "pending",
-          });
-        }
-
-        toast.success("تم إرسال الطلب بنجاح! سيتم مراجعة الفاتورة من الإدارة");
-        setBuyDialogOpen(false);
-        const { data } = await supabase.from("bookings").select("*").eq("lesson_id", id).eq("student_id", user.id);
-        setBookings(data ?? []);
+          installment_number: 1,
+          amount: installmentInfo!.amountPerInstallment,
+          sessions_unlocked: installmentInfo!.sessionsPerInstallment,
+          status: "pending",
+        });
       }
-    } catch (e: any) {
-      console.error("handleBuy unexpected error:", e);
-      toast.error("خطأ غير متوقع: " + (e?.message || "حاول مرة أخرى"));
+
+      toast.success("تم إرسال الطلب بنجاح! سيتم مراجعة الفاتورة من الإدارة");
+      setBuyDialogOpen(false);
+      const { data } = await supabase.from("bookings").select("*").eq("lesson_id", id).eq("student_id", user.id);
+      setBookings(data ?? []);
     }
     setBuying(false);
   };
@@ -502,7 +496,7 @@ export default function LessonDetailPage() {
                             <span className="text-xs text-primary mr-2">(الدفعة الأولى من {installmentInfo.numInstallments})</span>
                           )}
                         </p>
-                        <RadioGroup value={paymentMethod} onValueChange={async (v) => { setPaymentMethod(v); if (v === "bank_transfer") { const { requestCameraPermission } = await import("@/lib/uploadFile"); await requestCameraPermission(); } }}>
+                        <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
                           {paymentSettings?.paypal?.enabled && (
                             <div className="flex items-center gap-2">
                               <RadioGroupItem value="paypal" id="paypal" />
@@ -613,7 +607,7 @@ export default function LessonDetailPage() {
                             </div>
                             <div>
                               <Label>إرفاق صورة الإيصال</Label>
-                              <Input id="cameraImageInput" type="file" accept="image/*" {...{ capture: "camera" } as any} onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                              <Input type="file" accept="image/*" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
                             </div>
                           </div>
                         )}
