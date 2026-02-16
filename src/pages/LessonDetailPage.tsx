@@ -210,12 +210,21 @@ export default function LessonDetailPage() {
 
     if (paymentMethod === "bank_transfer" && receiptFile) {
       try {
-        const path = `${user.id}/${Date.now()}-${receiptFile.name}`;
+        // Request camera permission for Android WebView compatibility
+        try {
+          await navigator.mediaDevices?.getUserMedia({ video: true });
+        } catch (_) {
+          // Permission not needed for file selection, continue
+        }
+
+        console.log("Starting receipt upload:", receiptFile.name, receiptFile.type, receiptFile.size);
+        const path = `${user.id}/${Date.now()}-${receiptFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
         const { publicUrl } = await uploadFileCompat("uploads", path, receiptFile);
         receiptUrl = publicUrl;
-      } catch (e) {
-        console.error("Receipt upload error:", e);
-        toast.error("خطأ في رفع الإيصال");
+        console.log("Receipt uploaded successfully:", receiptUrl);
+      } catch (e: any) {
+        console.error("Receipt upload error:", e?.message || e);
+        toast.error("خطأ في رفع الإيصال: " + (e?.message || "حاول مرة أخرى"));
         setBuying(false);
         return;
       }
@@ -606,8 +615,24 @@ export default function LessonDetailPage() {
                               )}
                             </div>
                             <div>
-                              <Label>إرفاق صورة الإيصال</Label>
-                              <Input type="file" accept="image/*" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                              <Label htmlFor="receiptFileInput">إرفاق صورة الإيصال</Label>
+                              <input
+                                type="file"
+                                id="receiptFileInput"
+                                accept="image/*"
+                                capture="environment"
+                                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] ?? null;
+                                  setReceiptFile(file);
+                                  if (file) {
+                                    console.log("Receipt file selected:", file.name, file.type, file.size);
+                                  }
+                                }}
+                              />
+                              {receiptFile && (
+                                <p className="text-xs text-green-600 mt-1">✓ تم اختيار: {receiptFile.name}</p>
+                              )}
                             </div>
                           </div>
                         )}
