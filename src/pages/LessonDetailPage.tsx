@@ -414,10 +414,24 @@ export default function LessonDetailPage() {
 
                 <div className="flex items-center justify-between pt-4 border-t border-border">
                   <span className="text-xl font-bold text-primary">{format(lesson.price)}</span>
-                  <Dialog open={buyDialogOpen} onOpenChange={setBuyDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button variant="hero">شراء الحصة</Button>
-                    </DialogTrigger>
+                  {(() => {
+                    // Check if student has an active (non-completed, non-cancelled) booking for this lesson
+                    const activeBooking = bookings.find(b => !["completed", "cancelled"].includes(b.status));
+                    const allCompleted = bookings.length > 0 && bookings.every(b => ["completed", "cancelled"].includes(b.status));
+                    
+                    if (activeBooking) {
+                      return (
+                        <div className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-lg text-center">
+                          أنت مسجل بالفعل في هذا {lesson.lesson_type === "group" ? "الكورس" : "الدرس"}
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <Dialog open={buyDialogOpen} onOpenChange={setBuyDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="hero">{allCompleted ? "إعادة الشراء" : "شراء الحصة"}</Button>
+                        </DialogTrigger>
                     <DialogContent className="max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle>{lesson.lesson_type === "group" ? "شراء الكورس" : "شراء الحصة"}</DialogTitle>
@@ -605,6 +619,8 @@ export default function LessonDetailPage() {
                       </div>
                     </DialogContent>
                   </Dialog>
+                    );
+                  })()}
                 </div>
               </TabsContent>
 
