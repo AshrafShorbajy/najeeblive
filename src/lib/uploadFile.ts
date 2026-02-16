@@ -1,6 +1,25 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
+ * Request camera permission on Android WebView (Median.co).
+ * Must be called from a user gesture (click/tap) before showing a file input.
+ * This ensures the camera option appears in the Android file picker.
+ * Silently ignored on browsers that don't need it.
+ */
+export async function requestCameraPermission(): Promise<void> {
+  try {
+    if (navigator.mediaDevices?.getUserMedia) {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      // Stop tracks immediately – we only needed the permission prompt
+      stream.getTracks().forEach((t) => t.stop());
+    }
+  } catch {
+    // Permission denied or not available – that's fine, file picker still works for gallery
+    console.log("Camera permission not granted or not available");
+  }
+}
+
+/**
  * Sanitise a filename coming from a WebView file picker.
  * Some Android WebViews return empty or garbage names.
  */
