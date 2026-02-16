@@ -307,7 +307,36 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
       zoom_meeting_id: null,
     } as any).eq("id", session.id);
     toast.success("تم إنهاء الحصة");
-    openManageSessions(managingCourse);
+
+    // Check if ALL sessions are now completed → auto-complete course
+    const { data: allSessions } = await supabase.from("group_session_schedules")
+      .select("status").eq("lesson_id", managingCourse.id);
+    const allCompleted = allSessions && allSessions.length > 0 && allSessions.every(s => s.status === "completed");
+
+    if (allCompleted) {
+      // Deactivate the lesson
+      await supabase.from("lessons").update({ is_active: false }).eq("id", managingCourse.id);
+
+      // Complete all active bookings for this course
+      const { data: activeBookings } = await supabase.from("bookings")
+        .select("id").eq("lesson_id", managingCourse.id)
+        .in("status", ["pending", "accepted", "scheduled"]);
+      if (activeBookings && activeBookings.length > 0) {
+        for (const ab of activeBookings) {
+          await supabase.from("bookings").update({
+            status: "completed",
+            zoom_join_url: null,
+            zoom_start_url: null,
+            zoom_meeting_id: null,
+          }).eq("id", ab.id);
+        }
+      }
+
+      toast.success("تم إكمال جميع الحصص! تم إغلاق الكورس وتحويله إلى مكتمل");
+      setManagingCourse({ ...managingCourse, is_active: false });
+    }
+
+    openManageSessions(allCompleted ? { ...managingCourse, is_active: false } : managingCourse);
   };
 
   const handleDeleteSession = async (session: any) => {
