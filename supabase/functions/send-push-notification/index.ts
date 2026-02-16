@@ -14,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const { type, user_id, sender_id, conversation_id, student_id, teacher_id, title, body } =
+    const { type, user_id, sender_id, conversation_id, student_id, teacher_id, title, body, broadcast_target } =
       await req.json();
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -34,7 +34,19 @@ serve(async (req) => {
     // Determine target user IDs
     let targetUserIds: string[] = [];
 
-    if (type === "new_message" && sender_id && conversation_id) {
+    if (type === "broadcast" && broadcast_target) {
+      // Broadcast announcement to users by role
+      if (broadcast_target === "all") {
+        const { data: allRoles } = await supabase.from("user_roles").select("user_id");
+        targetUserIds = [...new Set((allRoles ?? []).map((r: any) => r.user_id))];
+      } else if (broadcast_target === "students") {
+        const { data: studentRoles } = await supabase.from("user_roles").select("user_id").eq("role", "student");
+        targetUserIds = (studentRoles ?? []).map((r: any) => r.user_id);
+      } else if (broadcast_target === "teachers") {
+        const { data: teacherRoles } = await supabase.from("user_roles").select("user_id").eq("role", "teacher");
+        targetUserIds = (teacherRoles ?? []).map((r: any) => r.user_id);
+      }
+    } else if (type === "new_message" && sender_id && conversation_id) {
       const { data: conv } = await supabase
         .from("conversations")
         .select("student_id, teacher_id")
@@ -56,6 +68,22 @@ serve(async (req) => {
       return new Response(JSON.stringify({ sent: 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // For broadcast, also insert in-app notifications
+    if (type === "broadcast" && targetUserIds.length > 0) {
+      const notifRows = targetUserIds.map((uid) => ({
+        user_id: uid,
+        type: "announcement",
+        title: title || "إعلان جديد",
+        body: body || "",
+        metadata: { broadcast_target },
+      }));
+      // Insert in batches of 500
+      for (let i = 0; i < notifRows.length; i += 500) {
+        const batch = notifRows.slice(i, i + 500);
+        await supabase.from("notifications").insert(batch);
+      }
     }
 
     // Get push subscriptions for target users
@@ -117,16 +145,28 @@ serve(async (req) => {
     let onesignalSent = 0;
     if (onesignal?.enabled && onesignal.app_id && onesignal.rest_api_key) {
       try {
-        const osPayload = {
-          app_id: onesignal.app_id,
-          include_aliases: {
-            external_id: targetUserIds,
-          },
-          target_channel: "push",
-          headings: { en: title || "إشعار جديد", ar: title || "إشعار جديد" },
-          contents: { en: body || "", ar: body || "" },
-          data: { type, url: "/" },
-        };
+        let osPayload: any;
+        if (type === "broadcast" && broadcast_target === "all") {
+          // Send to all subscribed users via segments
+          osPayload = {
+            app_id: onesignal.app_id,
+            included_segments: ["Subscribed Users"],
+            headings: { en: title || "إعلان جديد", ar: title || "إعلان جديد" },
+            contents: { en: body || "", ar: body || "" },
+            data: { type, url: "/" },
+          };
+        } else {
+          osPayload = {
+            app_id: onesignal.app_id,
+            include_aliases: {
+              external_id: targetUserIds,
+            },
+            target_channel: "push",
+            headings: { en: title || "إشعار جديد", ar: title || "إشعار جديد" },
+            contents: { en: body || "", ar: body || "" },
+            data: { type, url: "/" },
+          };
+        }
 
         const osResponse = await fetch("https://api.onesignal.com/notifications", {
           method: "POST",

@@ -48,6 +48,9 @@ export default function AdminDashboard() {
   const [selectedGrade, setSelectedGrade] = useState("");
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementDesc, setAnnouncementDesc] = useState("");
+  const [announcementTarget, setAnnouncementTarget] = useState<"all" | "students" | "teachers">("all");
+  const [sendingAnnouncement, setSendingAnnouncement] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   // Site settings states
   const [maintenanceMode, setMaintenanceMode] = useState(false);
@@ -320,11 +323,33 @@ const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "c
 
   const addAnnouncement = async () => {
     if (!announcementTitle) return;
-    await supabase.from("announcements").insert({ title: announcementTitle, description: announcementDesc });
-    setAnnouncementTitle("");
-    setAnnouncementDesc("");
-    toast.success("تمت الإضافة");
-    loadData();
+    setSendingAnnouncement(true);
+    try {
+      // Save to announcements table
+      await supabase.from("announcements").insert({ title: announcementTitle, description: announcementDesc });
+
+      // Send push notifications via edge function
+      const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
+        body: {
+          type: "broadcast",
+          broadcast_target: announcementTarget,
+          title: announcementTitle,
+          body: announcementDesc,
+        },
+      });
+      if (pushError) console.error("Push notification error:", pushError);
+
+      setAnnouncementTitle("");
+      setAnnouncementDesc("");
+      setAnnouncementTarget("all");
+      toast.success("تم إضافة الإعلان وإرسال التنبيهات بنجاح");
+      loadData();
+    } catch (err) {
+      console.error("Announcement error:", err);
+      toast.error("خطأ في إضافة الإعلان");
+    } finally {
+      setSendingAnnouncement(false);
+    }
   };
 
   const [withdrawalReceiptFile, setWithdrawalReceiptFile] = useState<File | null>(null);
@@ -892,10 +917,68 @@ const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "c
           </TabsContent>
 
           <TabsContent value="announcements" className="mt-4 space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-3 bg-card rounded-xl p-4 border border-border">
+              <h3 className="font-semibold flex items-center gap-2"><Megaphone className="h-5 w-5" />إعلان جديد</h3>
               <Input placeholder="عنوان الإعلان" value={announcementTitle} onChange={(e) => setAnnouncementTitle(e.target.value)} />
-              <Input placeholder="وصف الإعلان" value={announcementDesc} onChange={(e) => setAnnouncementDesc(e.target.value)} />
-              <Button onClick={addAnnouncement} variant="hero" className="w-full">إضافة إعلان</Button>
+              <div className="relative">
+                <Textarea
+                  placeholder="نص الإعلان... يمكنك إضافة إيموجي 😊"
+                  value={announcementDesc}
+                  onChange={(e) => setAnnouncementDesc(e.target.value)}
+                  rows={3}
+                />
+                <div className="flex items-center gap-2 mt-1">
+                  <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" type="button">😊 إيموجي</Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 p-2" align="start">
+                      <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto text-xl">
+                        {["😊","😍","🎉","🔥","⭐","💡","📢","🎓","📚","✅","❤️","👏","💪","🏆","🌟","💯","🎯","🚀","💰","🎁","👋","😎","🤩","🥳","📖","✍️","🧠","💻","📱","🎨","🌈","⚡","💎","🙏","👍","🤝","📣","🔔","💬","📝","🗓️","⏰","🎵","🌍","👑","💼","🎭","🧪"].map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            className="hover:bg-muted rounded p-1 cursor-pointer text-center"
+                            onClick={() => {
+                              setAnnouncementDesc(prev => prev + emoji);
+                              setShowEmojiPicker(false);
+                            }}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm font-medium mb-2 block">إرسال التنبيه إلى:</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {([
+                    { value: "all", label: "جميع المستخدمين", icon: "👥" },
+                    { value: "students", label: "الطلاب فقط", icon: "🎓" },
+                    { value: "teachers", label: "المعلمين فقط", icon: "👨‍🏫" },
+                  ] as const).map((opt) => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={announcementTarget === opt.value ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setAnnouncementTarget(opt.value)}
+                    >
+                      {opt.icon} {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <Button onClick={addAnnouncement} variant="hero" className="w-full" disabled={sendingAnnouncement || !announcementTitle}>
+                {sendingAnnouncement ? (
+                  <><span className="animate-spin mr-2">⏳</span>جارٍ الإرسال...</>
+                ) : (
+                  <><Bell className="h-4 w-4 ml-2" />إضافة إعلان وإرسال التنبيهات</>
+                )}
+              </Button>
             </div>
             <div className="space-y-2">
               {announcements.map((a) => (
