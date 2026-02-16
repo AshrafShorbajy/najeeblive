@@ -18,17 +18,16 @@ export function AnnouncementBanner() {
   const [bannerDesc, setBannerDesc] = useState("أفضل منصة للدروس الخصوصية عبر الإنترنت");
   const [bannerImage, setBannerImage] = useState("");
 
-  useEffect(() => {
+  const loadData = () => {
     supabase
       .from("announcements")
       .select("*")
       .eq("is_active", true)
       .order("display_order")
       .then(({ data }) => {
-        if (data && data.length > 0) setAnnouncements(data);
+        setAnnouncements(data && data.length > 0 ? data : []);
       });
 
-    // Load banner settings
     supabase.from("site_settings").select("key, value").in("key", ["home_banner_title", "home_banner_description", "home_banner_image"])
       .then(({ data }) => {
         data?.forEach(s => {
@@ -37,6 +36,16 @@ export function AnnouncementBanner() {
           if (s.key === "home_banner_image" && typeof s.value === "string") setBannerImage(s.value);
         });
       });
+  };
+
+  useEffect(() => {
+    loadData();
+    const channel = supabase
+      .channel("announcements-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, () => loadData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, () => loadData())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   useEffect(() => {

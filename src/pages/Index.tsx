@@ -24,16 +24,30 @@ const Index = () => {
   const { isAdmin } = useAuthContext();
 
   useEffect(() => {
-    Promise.all([
-      supabase.from("site_settings").select("value").eq("key", "maintenance_mode").single(),
-      supabase.from("site_settings").select("value").eq("key", "homepage_sections_order").single(),
-    ]).then(([maintRes, orderRes]) => {
-      if (maintRes.data && maintRes.data.value === true) setMaintenance(true);
-      if (orderRes.data && Array.isArray(orderRes.data.value) && orderRes.data.value.length > 0) {
-        setSectionsOrder(orderRes.data.value as string[]);
-      }
-      setLoading(false);
-    });
+    const loadSettings = () => {
+      Promise.all([
+        supabase.from("site_settings").select("value").eq("key", "maintenance_mode").single(),
+        supabase.from("site_settings").select("value").eq("key", "homepage_sections_order").single(),
+      ]).then(([maintRes, orderRes]) => {
+        if (maintRes.data && maintRes.data.value === true) setMaintenance(true);
+        else setMaintenance(false);
+        if (orderRes.data && Array.isArray(orderRes.data.value) && orderRes.data.value.length > 0) {
+          setSectionsOrder(orderRes.data.value as string[]);
+        }
+        setLoading(false);
+      });
+    };
+    loadSettings();
+
+    // Realtime: auto-refresh homepage when settings or announcements change
+    const channel = supabase
+      .channel("homepage-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" },
+        () => loadSettings())
+      .on("postgres_changes", { event: "*", schema: "public", table: "announcements" },
+        () => {/* Components will re-render via their own fetch */})
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   if (loading) {

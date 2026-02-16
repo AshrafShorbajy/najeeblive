@@ -13,13 +13,22 @@ const defaultOffers = [
 export function OffersSection() {
   const [offers, setOffers] = useState<{ title: string; description: string; image_url?: string }[]>(defaultOffers);
 
-  useEffect(() => {
+  const loadOffers = () => {
     supabase.from("site_settings").select("value").eq("key", "offers").single()
       .then(({ data }) => {
         if (data && Array.isArray(data.value) && data.value.length > 0) {
           setOffers(data.value as any);
         }
       });
+  };
+
+  useEffect(() => {
+    loadOffers();
+    const channel = supabase
+      .channel("offers-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, () => loadOffers())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   if (offers.length === 0) return null;
