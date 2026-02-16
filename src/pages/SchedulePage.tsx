@@ -48,7 +48,7 @@ export default function SchedulePage() {
     const loadBookings = async () => {
       const { data } = await supabase
         .from("bookings")
-        .select("*, lessons(title, duration_minutes, lesson_type, total_sessions, expected_students, teacher_id)")
+        .select("*, lessons(title, duration_minutes, lesson_type, total_sessions, expected_students, teacher_id, is_active)")
         .or(`student_id.eq.${user.id},teacher_id.eq.${user.id}`)
         .order("scheduled_at", { ascending: true });
 
@@ -146,6 +146,12 @@ export default function SchedulePage() {
   };
 
   const openInstallmentPayment = async (booking: any) => {
+    // Check if course is still active before allowing payment
+    const { data: lessonCheck } = await supabase.from("lessons").select("is_active").eq("id", booking.lesson_id).single();
+    if (!lessonCheck?.is_active) {
+      toast.error("هذا الكورس منتهي ولا يقبل دفعات جديدة");
+      return;
+    }
     setInstallPayBooking(booking);
     // Fetch existing installments to determine the next one
     const { data: installments } = await (supabase.from("course_installments" as any) as any)
@@ -398,7 +404,7 @@ export default function SchedulePage() {
               <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />{viewingCourse.lessons?.total_sessions} حصة</span>
             </div>
             {/* Installment payment warning - hidden when course is inactive/completed */}
-            {(viewingCourse as any).is_installment && paidSessions < (viewingCourse.lessons?.total_sessions || 0) && viewingCourse.status !== "completed" && (
+            {(viewingCourse as any).is_installment && paidSessions < (viewingCourse.lessons?.total_sessions || 0) && viewingCourse.status !== "completed" && viewingCourse.lessons?.is_active !== false && (
               <div className="mt-3 p-3 rounded-lg bg-warning/10 border border-warning/20 text-sm space-y-2">
                 <p className="font-semibold text-warning mb-1">⚠️ يجب دفع الدفعة التالية</p>
                 <p className="text-xs text-muted-foreground">الحصص المدفوعة: {paidSessions} من {viewingCourse.lessons?.total_sessions}</p>
@@ -431,7 +437,7 @@ export default function SchedulePage() {
                     </span>
                   </div>
 
-                  {!isUnlocked && (
+                  {!isUnlocked && viewingCourse.lessons?.is_active !== false && viewingCourse.status !== "completed" && (
                     <p className="text-xs text-destructive mb-2">🔒 يجب دفع الدفعة التالية لفتح هذه الحصة</p>
                   )}
 
