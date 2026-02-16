@@ -302,10 +302,6 @@ export default function TeacherDashboard() {
 
     // Validation for group lessons
     if (newLesson.lesson_type === "group") {
-      if (!newLesson.course_start_date) {
-        toast.error("يجب تحديد موعد بداية الكورس");
-        return;
-      }
       if (newLesson.total_sessions < 5) {
         toast.error("يجب أن يكون عدد الحصص 5 على الأقل");
         return;
@@ -316,6 +312,12 @@ export default function TeacherDashboard() {
         return;
       }
     }
+
+    // Auto-set course_start_date from earliest session date
+    const filledSessionDates = newLesson.session_dates.filter(d => d.trim() !== "");
+    const autoStartDate = filledSessionDates.length > 0
+      ? filledSessionDates.map(d => new Date(d)).sort((a, b) => a.getTime() - b.getTime())[0].toISOString()
+      : null;
 
     const { data: lessonData, error } = await supabase.from("lessons").insert({
       teacher_id: user.id,
@@ -333,7 +335,7 @@ export default function TeacherDashboard() {
       notes: newLesson.notes,
       expected_students: newLesson.lesson_type === "group" ? newLesson.expected_students : null,
       total_sessions: newLesson.lesson_type === "group" ? newLesson.total_sessions : null,
-      course_start_date: newLesson.lesson_type === "group" && newLesson.course_start_date ? new Date(newLesson.course_start_date).toISOString() : null,
+      course_start_date: newLesson.lesson_type === "group" ? autoStartDate : null,
       course_topic_type: newLesson.lesson_type === "group" ? newLesson.course_topic_type : null,
     }).select().single();
 

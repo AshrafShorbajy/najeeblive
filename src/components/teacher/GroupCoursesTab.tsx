@@ -89,10 +89,13 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
   };
 
   const handleAdd = async () => {
-    if (!newCourse.course_start_date) { toast.error("يجب تحديد موعد بداية الكورس"); return; }
     if (newCourse.total_sessions < 5) { toast.error("يجب أن يكون عدد الحصص 5 على الأقل"); return; }
     const filledDates = newCourse.session_dates.filter(d => d.trim() !== "");
     if (filledDates.length < 5) { toast.error("يجب إدخال 5 مواعيد حصص على الأقل لتفعيل الكورس"); return; }
+
+    // Auto-set course_start_date from earliest session date
+    const sortedDates = filledDates.map(d => new Date(d)).sort((a, b) => a.getTime() - b.getTime());
+    const courseStartDate = sortedDates[0].toISOString();
 
     // Validate each session date for past dates and overlaps
     for (let i = 0; i < filledDates.length; i++) {
@@ -119,7 +122,7 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
       notes: newCourse.notes,
       expected_students: newCourse.expected_students,
       total_sessions: newCourse.total_sessions,
-      course_start_date: new Date(newCourse.course_start_date).toISOString(),
+      course_start_date: courseStartDate,
       course_topic_type: newCourse.course_topic_type,
     }).select().single();
 
@@ -206,6 +209,12 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
       }
     }
 
+    // Auto-set course_start_date from earliest session date
+    const filledEditDates = editSessionDates.filter(sd => sd.scheduled_at).map(sd => new Date(sd.scheduled_at));
+    const autoStartDate = filledEditDates.length > 0
+      ? filledEditDates.sort((a, b) => a.getTime() - b.getTime())[0].toISOString()
+      : editCourse.course_start_date ? new Date(editCourse.course_start_date).toISOString() : null;
+
     const { error } = await supabase.from("lessons").update({
       title: editCourse.title,
       description: editCourse.description,
@@ -220,7 +229,7 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
       is_active: editCourse.is_active,
       expected_students: editCourse.expected_students,
       total_sessions: editCourse.total_sessions,
-      course_start_date: editCourse.course_start_date ? new Date(editCourse.course_start_date).toISOString() : null,
+      course_start_date: autoStartDate,
       course_topic_type: editCourse.course_topic_type,
     }).eq("id", editCourse.id);
 
@@ -604,9 +613,7 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
             </SelectContent>
           </Select>
         </div>
-        <div><Label>موعد بداية الكورس</Label>
-          <Input type="datetime-local" value={form.course_start_date || ""} onChange={(e) => setForm({ ...form, course_start_date: e.target.value })} dir="ltr" />
-        </div>
+        {/* course_start_date is auto-set from first session date */}
         <div><Label>عدد الحصص المقررة (5 كحد أدنى)</Label>
           <Input type="number" min={5} value={form.total_sessions || 5} onChange={(e) => {
             const val = Math.max(5, parseInt(e.target.value) || 5);
