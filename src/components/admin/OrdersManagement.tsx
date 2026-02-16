@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Search, Calendar, Eye, Clock, CheckCircle, XCircle, ExternalLink, Image } from "lucide-react";
+import { Search, Calendar, Eye, Clock, CheckCircle, XCircle, ExternalLink, Image, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   pending: { label: "في الانتظار", color: "bg-yellow-100 text-yellow-800 border-yellow-300" },
@@ -18,9 +19,11 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 export default function OrdersManagement() {
+  const { format } = useCurrency();
   const [bookings, setBookings] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<Record<string, any>>({});
   const [lessons, setLessons] = useState<Record<string, any>>({});
+  const [relatedInvoicesMap, setRelatedInvoicesMap] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -62,11 +65,27 @@ export default function OrdersManagement() {
     if (lessonIds.length > 0) {
       const { data: lData } = await supabase
         .from("lessons")
-        .select("id, title, price, duration_minutes, lesson_type")
+        .select("id, title, price, duration_minutes, lesson_type, total_sessions, expected_students")
         .in("id", lessonIds);
       const lMap: Record<string, any> = {};
       lData?.forEach(l => { lMap[l.id] = l; });
       setLessons(lMap);
+    }
+
+    // Fetch related invoices for all bookings
+    const bookingIds = allBookings.map(b => b.id);
+    if (bookingIds.length > 0) {
+      const { data: invData } = await supabase
+        .from("invoices")
+        .select("id, booking_id, amount, status, payment_method, created_at")
+        .in("booking_id", bookingIds)
+        .order("created_at", { ascending: true });
+      const riMap: Record<string, any[]> = {};
+      (invData ?? []).forEach((inv: any) => {
+        if (!riMap[inv.booking_id]) riMap[inv.booking_id] = [];
+        riMap[inv.booking_id].push(inv);
+      });
+      setRelatedInvoicesMap(riMap);
     }
 
     setLoading(false);
@@ -163,6 +182,9 @@ export default function OrdersManagement() {
           const teacher = profiles[b.teacher_id];
           const lesson = lessons[b.lesson_id];
           const status = STATUS_MAP[b.status] || { label: b.status, color: "bg-muted" };
+          const isGroup = lesson?.lesson_type === "group";
+          const isInstallment = b.is_installment;
+          const relatedInvoices = relatedInvoicesMap[b.id] || [];
 
           return (
             <div
@@ -181,13 +203,26 @@ export default function OrdersManagement() {
                     <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${status.color}`}>
                       {status.label}
                     </span>
+                    {isGroup && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border font-medium bg-purple-100 text-purple-800 border-purple-300">
+                        كورس جماعي
+                      </span>
+                    )}
+                    {isInstallment && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border font-medium bg-indigo-100 text-indigo-800 border-indigo-300">
+                        أقساط
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>الطالب: {student?.full_name || "—"}</span>
                     <span>المعلم: {teacher?.full_name || "—"}</span>
+                    {isInstallment && relatedInvoices.length > 0 && (
+                      <span className="text-indigo-600 font-medium">{relatedInvoices.filter((i: any) => i.status === "paid").length}/{b.total_installments || "?"} دفعات</span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span>{b.amount} ر.س</span>
+                    <span>{format(b.amount)}</span>
                     <span>{b.payment_method === "paypal" ? "PayPal" : b.payment_method === "bank_transfer" ? "تحويل بنكي" : "—"}</span>
                     <span>{new Date(b.created_at).toLocaleDateString("ar")}</span>
                   </div>
@@ -217,6 +252,14 @@ export default function OrdersManagement() {
             const teacher = profiles[b.teacher_id];
             const lesson = lessons[b.lesson_id];
             const status = STATUS_MAP[b.status] || { label: b.status, color: "bg-muted" };
+            const isGroup = lesson?.lesson_type === "group";
+            const isInstallment = b.is_installment;
+            const relatedInvoices = (relatedInvoicesMap[b.id] || []);
+            const INVOICE_STATUS: Record<string, { label: string; color: string }> = {
+              pending: { label: "بانتظار المراجعة", color: "bg-yellow-100 text-yellow-800 border-yellow-300" },
+              paid: { label: "مدفوع", color: "bg-green-100 text-green-800 border-green-300" },
+              rejected: { label: "مرفوض", color: "bg-red-100 text-red-800 border-red-300" },
+            };
 
             return (
               <>
@@ -226,12 +269,32 @@ export default function OrdersManagement() {
                 <div className="space-y-4">
                   {/* Lesson Info */}
                   <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                    <p className="font-semibold text-sm">{lesson?.title || "حصة محذوفة"}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-sm">{lesson?.title || "حصة محذوفة"}</p>
+                      {isGroup && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full border font-medium bg-purple-100 text-purple-800 border-purple-300">
+                          كورس جماعي
+                        </span>
+                      )}
+                      {isInstallment && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full border font-medium bg-indigo-100 text-indigo-800 border-indigo-300">
+                          أقساط
+                        </span>
+                      )}
+                    </div>
                     <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                       <span>{lesson?.duration_minutes} دقيقة</span>
-                      <span>{b.amount} ر.س</span>
-                      <span>{lesson?.lesson_type === "tutoring" ? "دروس خصوصية" : lesson?.lesson_type === "skills" ? "مهارات" : "مراجعة حقيبة"}</span>
+                      <span>{format(b.amount)}</span>
+                      <span>{lesson?.lesson_type === "tutoring" ? "دروس خصوصية" : lesson?.lesson_type === "skills" ? "مهارات" : lesson?.lesson_type === "group" ? "كورس جماعي" : "مراجعة حقيبة"}</span>
                     </div>
+                    {isGroup && (
+                      <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground mt-1 pt-1 border-t border-border">
+                        {lesson?.total_sessions && <span>عدد الحصص: {lesson.total_sessions}</span>}
+                        {lesson?.expected_students && <span>العدد المتوقع: {lesson.expected_students} طالب</span>}
+                        {lesson?.price && <span>سعر الكورس: {format(lesson.price)}</span>}
+                        {isInstallment && <span>الحصص المدفوعة: {b.paid_sessions || 0}/{lesson?.total_sessions || "?"}</span>}
+                      </div>
+                    )}
                   </div>
 
                   {/* Participants */}
@@ -255,7 +318,7 @@ export default function OrdersManagement() {
                       <span className="bg-muted px-2 py-1 rounded">
                         {b.payment_method === "paypal" ? "PayPal" : b.payment_method === "bank_transfer" ? "تحويل بنكي" : "غير محدد"}
                       </span>
-                      <span className="bg-muted px-2 py-1 rounded">{b.amount} ر.س</span>
+                      <span className="bg-muted px-2 py-1 rounded">{format(b.amount)}</span>
                     </div>
                     {b.payment_receipt_url && (
                       <a href={b.payment_receipt_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline">
@@ -264,6 +327,37 @@ export default function OrdersManagement() {
                       </a>
                     )}
                   </div>
+
+                  {/* Installment Payment History */}
+                  {relatedInvoices.length > 0 && (isInstallment || relatedInvoices.length > 1) && (
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-semibold text-indigo-800">سجل الدفعات ({relatedInvoices.length} دفعة)</p>
+                      <div className="space-y-1.5">
+                        {relatedInvoices.map((ri: any, idx: number) => {
+                          const riStatus = INVOICE_STATUS[ri.status] || { label: ri.status, color: "bg-muted" };
+                          return (
+                            <div key={ri.id} className="flex items-center justify-between text-xs p-2 rounded-lg bg-white/60">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-indigo-700">دفعة {idx + 1}</span>
+                                <span className="text-muted-foreground">{ri.payment_method === "paypal" ? "PayPal" : "تحويل بنكي"}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{format(ri.amount)}</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${riStatus.color}`}>{riStatus.label}</span>
+                                <span className="text-muted-foreground">{new Date(ri.created_at).toLocaleDateString("ar")}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex justify-between items-center pt-1 border-t border-indigo-200 text-xs">
+                        <span className="font-semibold text-indigo-800">إجمالي المدفوع</span>
+                        <span className="font-bold text-indigo-900">
+                          {format(relatedInvoices.filter((ri: any) => ri.status === "paid").reduce((sum: number, ri: any) => sum + ri.amount, 0))}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Zoom Links */}
                   {(b.zoom_join_url || b.zoom_start_url) && (

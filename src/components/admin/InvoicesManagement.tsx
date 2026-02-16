@@ -22,6 +22,8 @@ export default function InvoicesManagement() {
   const [profiles, setProfiles] = useState<Record<string, any>>({});
   const [emails, setEmails] = useState<Record<string, string>>({});
   const [lessonsMap, setLessonsMap] = useState<Record<string, any>>({});
+  const [bookingsMap, setBookingsMap] = useState<Record<string, any>>({});
+  const [relatedInvoicesMap, setRelatedInvoicesMap] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -59,6 +61,7 @@ export default function InvoicesManagement() {
 
     const userIds = [...new Set(allInvoices.flatMap(i => [i.student_id, i.teacher_id]))];
     const lessonIds = [...new Set(allInvoices.map(i => i.lesson_id))];
+    const bookingIds = [...new Set(allInvoices.map(i => i.booking_id))];
 
     if (userIds.length > 0) {
       const { data: pData } = await supabase
@@ -73,12 +76,31 @@ export default function InvoicesManagement() {
     if (lessonIds.length > 0) {
       const { data: lData } = await supabase
         .from("lessons")
-        .select("id, title, price, duration_minutes, lesson_type, curricula(name), grade_levels(name), subjects(name)")
+        .select("id, title, price, duration_minutes, lesson_type, total_sessions, expected_students, curricula(name), grade_levels(name), subjects(name)")
         .in("id", lessonIds);
       const lMap: Record<string, any> = {};
       lData?.forEach(l => { lMap[l.id] = l; });
       setLessonsMap(lMap);
     }
+
+    // Fetch bookings to detect installments
+    if (bookingIds.length > 0) {
+      const { data: bData } = await supabase
+        .from("bookings")
+        .select("id, is_installment, total_installments, paid_sessions, status, amount")
+        .in("id", bookingIds);
+      const bMap: Record<string, any> = {};
+      bData?.forEach(b => { bMap[b.id] = b; });
+      setBookingsMap(bMap);
+    }
+
+    // Build related invoices map (group by booking_id)
+    const riMap: Record<string, any[]> = {};
+    allInvoices.forEach(inv => {
+      if (!riMap[inv.booking_id]) riMap[inv.booking_id] = [];
+      riMap[inv.booking_id].push(inv);
+    });
+    setRelatedInvoicesMap(riMap);
 
     setLoading(false);
   };
@@ -419,7 +441,10 @@ export default function InvoicesManagement() {
           const student = profiles[inv.student_id];
           const teacher = profiles[inv.teacher_id];
           const lesson = lessonsMap[inv.lesson_id];
+          const booking = bookingsMap[inv.booking_id];
           const status = INVOICE_STATUS_MAP[inv.status] || { label: inv.status, color: "bg-muted" };
+          const isInstallment = booking?.is_installment || lesson?.lesson_type === "group";
+          const relatedCount = (relatedInvoicesMap[inv.booking_id] || []).length;
 
           return (
             <div
@@ -435,10 +460,23 @@ export default function InvoicesManagement() {
                     <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${status.color}`}>
                       {status.label}
                     </span>
+                    {isInstallment && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border font-medium bg-indigo-100 text-indigo-800 border-indigo-300">
+                        دفعة قسط
+                      </span>
+                    )}
+                    {lesson?.lesson_type === "group" && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border font-medium bg-purple-100 text-purple-800 border-purple-300">
+                        كورس جماعي
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>الطالب: {student?.full_name || "—"}</span>
                     <span>المعلم: {teacher?.full_name || "—"}</span>
+                    {isInstallment && relatedCount > 1 && (
+                      <span className="text-indigo-600 font-medium">{relatedCount} دفعات</span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>{format(inv.amount)}</span>
@@ -464,8 +502,11 @@ export default function InvoicesManagement() {
             const student = profiles[inv.student_id];
             const teacher = profiles[inv.teacher_id];
             const lesson = lessonsMap[inv.lesson_id];
+            const booking = bookingsMap[inv.booking_id];
             const studentEmail = emails[inv.student_id] || "—";
             const status = INVOICE_STATUS_MAP[inv.status] || { label: inv.status, color: "bg-muted" };
+            const isInstallment = booking?.is_installment || lesson?.lesson_type === "group";
+            const relatedInvoices = (relatedInvoicesMap[inv.booking_id] || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
             return (
               <>
@@ -501,19 +542,49 @@ export default function InvoicesManagement() {
 
                   {/* Lesson Info */}
                   <div className="bg-primary/5 rounded-lg p-3 space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground">تفاصيل الحصة</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-semibold text-muted-foreground">تفاصيل الحصة</p>
+                      {isInstallment && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full border font-medium bg-indigo-100 text-indigo-800 border-indigo-300">
+                          دفعة قسط
+                        </span>
+                      )}
+                      {lesson?.lesson_type === "group" && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full border font-medium bg-purple-100 text-purple-800 border-purple-300">
+                          كورس جماعي
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm font-semibold">{lesson?.title || "—"}</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
                         <span className="text-muted-foreground">النوع: </span>
                         <span className="font-medium">
-                          {lesson?.lesson_type === "tutoring" ? "دروس خصوصية" : lesson?.lesson_type === "skills" ? "مهارات" : "مراجعة حقيبة"}
+                          {lesson?.lesson_type === "tutoring" ? "دروس خصوصية" : lesson?.lesson_type === "skills" ? "مهارات" : lesson?.lesson_type === "group" ? "كورس جماعي" : "مراجعة حقيبة"}
                         </span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">المدة: </span>
                         <span className="font-medium">{lesson?.duration_minutes} دقيقة</span>
                       </div>
+                      {lesson?.lesson_type === "group" && lesson?.total_sessions && (
+                        <div>
+                          <span className="text-muted-foreground">عدد الحصص: </span>
+                          <span className="font-medium">{lesson.total_sessions} حصة</span>
+                        </div>
+                      )}
+                      {lesson?.lesson_type === "group" && lesson?.expected_students && (
+                        <div>
+                          <span className="text-muted-foreground">العدد المتوقع: </span>
+                          <span className="font-medium">{lesson.expected_students} طالب</span>
+                        </div>
+                      )}
+                      {lesson?.lesson_type === "group" && lesson?.price && (
+                        <div>
+                          <span className="text-muted-foreground">سعر الكورس الكامل: </span>
+                          <span className="font-medium">{format(lesson.price)}</span>
+                        </div>
+                      )}
                       {lesson?.curricula?.name && (
                         <div>
                           <span className="text-muted-foreground">المنهج: </span>
@@ -534,6 +605,41 @@ export default function InvoicesManagement() {
                       )}
                     </div>
                   </div>
+
+                  {/* Installment Payment History */}
+                  {isInstallment && relatedInvoices.length > 1 && (
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-semibold text-indigo-800">سجل الدفعات ({relatedInvoices.length} دفعة)</p>
+                      <div className="space-y-1.5">
+                        {relatedInvoices.map((ri: any, idx: number) => {
+                          const riStatus = INVOICE_STATUS_MAP[ri.status] || { label: ri.status, color: "bg-muted" };
+                          const isCurrent = ri.id === inv.id;
+                          return (
+                            <div
+                              key={ri.id}
+                              className={`flex items-center justify-between text-xs p-2 rounded-lg ${isCurrent ? "bg-indigo-100 border border-indigo-300" : "bg-white/60"}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-indigo-700">دفعة {idx + 1}</span>
+                                {isCurrent && <span className="text-[9px] px-1.5 py-0.5 bg-indigo-200 text-indigo-800 rounded">الحالية</span>}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{format(ri.amount)}</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${riStatus.color}`}>{riStatus.label}</span>
+                                <span className="text-muted-foreground">{new Date(ri.created_at).toLocaleDateString("ar")}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex justify-between items-center pt-1 border-t border-indigo-200 text-xs">
+                        <span className="font-semibold text-indigo-800">إجمالي المدفوع</span>
+                        <span className="font-bold text-indigo-900">
+                          {format(relatedInvoices.filter((ri: any) => ri.status === "paid").reduce((sum: number, ri: any) => sum + ri.amount, 0))}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Payment Info */}
                   <div className="bg-muted/50 rounded-lg p-3 space-y-2">
