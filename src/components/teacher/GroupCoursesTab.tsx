@@ -586,7 +586,15 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
     );
   }
 
-  const CourseFormFields = ({ form, setForm, isEdit }: { form: any; setForm: (f: any) => void; isEdit?: boolean }) => (
+  // CourseFormFields is now defined outside the component to avoid re-mounting
+
+function CourseFormFields({ form, setForm, isEdit, curricula, gradeLevels, setGradeLevels, subjects, setSubjects, editSessionDates, setEditSessionDates }: {
+  form: any; setForm: (f: any) => void; isEdit?: boolean;
+  curricula: any[]; gradeLevels: any[]; setGradeLevels: (g: any[]) => void;
+  subjects: any[]; setSubjects: (s: any[]) => void;
+  editSessionDates?: any[]; setEditSessionDates?: (d: any) => void;
+}) {
+  return (
     <div className="space-y-3">
       <div><Label>عنوان الكورس</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
       <div><Label>الوصف</Label><Textarea value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
@@ -642,7 +650,6 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
             </SelectContent>
           </Select>
         </div>
-        {/* course_start_date is auto-set from first session date */}
         <div><Label>عدد الحصص المقررة (5 كحد أدنى)</Label>
           <Input type="number" min={5} value={form.total_sessions || 5} onChange={(e) => {
             const val = Math.max(5, parseInt(e.target.value) || 5);
@@ -652,7 +659,7 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
               setForm({ ...form, total_sessions: val, session_dates: dates.slice(0, val) });
             } else {
               setForm({ ...form, total_sessions: val });
-              setEditSessionDates(prev => {
+              setEditSessionDates?.(prev => {
                 const newDates = [...prev];
                 while (newDates.length < val) newDates.push({ session_number: newDates.length + 1, scheduled_at: "" });
                 return newDates.slice(0, val);
@@ -661,7 +668,7 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
           }} />
         </div>
 
-        {isEdit && editCourse && (
+        {isEdit && form && (
           <div className="flex items-center gap-2">
             <Label>نشط</Label>
             <input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
@@ -670,6 +677,9 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
       </div>
     </div>
   );
+}
+
+
 
   return (
     <div dir="rtl">
@@ -682,7 +692,7 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
         </DialogTrigger>
         <DialogContent className="max-h-[80vh] overflow-y-auto">
           <DialogHeader><DialogTitle>إضافة كورس جماعي</DialogTitle></DialogHeader>
-          <CourseFormFields form={newCourse} setForm={setNewCourse} />
+          <CourseFormFields form={newCourse} setForm={setNewCourse} curricula={curricula} gradeLevels={gradeLevels} setGradeLevels={setGradeLevels} subjects={subjects} setSubjects={setSubjects} />
           <div className="space-y-2 mt-2">
             <Label>مواعيد الحصص (أدخل 5 مواعيد على الأقل)</Label>
             <div className="max-h-48 overflow-y-auto space-y-2">
@@ -715,7 +725,7 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
           <DialogHeader><DialogTitle>تعديل الكورس الجماعي</DialogTitle></DialogHeader>
           {editCourse && (
             <>
-              <CourseFormFields form={editCourse} setForm={setEditCourse} isEdit />
+              <CourseFormFields form={editCourse} setForm={setEditCourse} isEdit curricula={curricula} gradeLevels={gradeLevels} setGradeLevels={setGradeLevels} subjects={subjects} setSubjects={setSubjects} editSessionDates={editSessionDates} setEditSessionDates={setEditSessionDates} />
               <div className="space-y-2 mt-2">
                 <Label>مواعيد الحصص</Label>
                 <div className="max-h-48 overflow-y-auto space-y-2">
