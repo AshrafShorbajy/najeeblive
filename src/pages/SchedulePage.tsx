@@ -139,8 +139,9 @@ export default function SchedulePage() {
       .select("*").eq("booking_id", booking.id).order("installment_number");
     
     // Count all installments (paid + pending) to determine the next number
+    // Initial booking = installment 1, so next payment starts from 2
     const allInstallments = installments ?? [];
-    const nextNumber = allInstallments.length + 1;
+    const nextNumber = allInstallments.length + 2;
     
     // Get lesson price for calculation
     const { data: lesson } = await supabase.from("lessons").select("price, total_sessions").eq("id", booking.lesson_id).single();
@@ -367,7 +368,10 @@ export default function SchedulePage() {
 
   // Group course detail view
   if (viewingCourse) {
-    const paidSessions = (viewingCourse as any).paid_sessions || viewingCourse.lessons?.total_sessions || 999;
+    const isInstallmentCourse = (viewingCourse as any).is_installment;
+    const paidSessions = isInstallmentCourse
+      ? ((viewingCourse as any).paid_sessions ?? 0)
+      : (viewingCourse.lessons?.total_sessions || 999);
     return (
       <AppLayout>
         <div className="px-4 py-6">
