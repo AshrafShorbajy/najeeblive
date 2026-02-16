@@ -343,8 +343,8 @@ export default function SchedulePage() {
           <button onClick={() => setWatchingSession(null)} className="text-sm text-primary flex items-center gap-1 mb-4">
             <ArrowRight className="h-4 w-4" />رجوع
           </button>
-          <h2 className="text-lg font-bold mb-4">حصة {watchingSession.session_number} - تسجيل</h2>
-          <VideoPlayer src={watchingSession.recording_url} title={`حصة ${watchingSession.session_number}`} />
+          <h2 className="text-lg font-bold mb-4">{(watchingSession as any).title || `حصة ${watchingSession.session_number}`} - تسجيل</h2>
+          <VideoPlayer src={watchingSession.recording_url} title={(watchingSession as any).title || `حصة ${watchingSession.session_number}`} />
         </div>
       </AppLayout>
     );
@@ -406,7 +406,7 @@ export default function SchedulePage() {
                 <div key={session.id} className={`bg-card rounded-xl p-4 border ${isUnlocked ? "border-border" : "border-destructive/30 opacity-60"}`}>
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <h4 className="font-semibold text-sm">حصة {session.session_number}</h4>
+                      <h4 className="font-semibold text-sm">{(session as any).title || `حصة ${session.session_number}`}</h4>
                       <p className="text-xs text-muted-foreground">{new Date(session.scheduled_at).toLocaleString("ar")}</p>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${
