@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { uploadFileCompat } from "@/lib/uploadFile";
+import { uploadFileCompat, buildReceiptPath } from "@/lib/uploadFile";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 export default function LessonDetailPage() {
@@ -210,61 +210,67 @@ export default function LessonDetailPage() {
 
     if (paymentMethod === "bank_transfer" && receiptFile) {
       try {
-        const path = `${user.id}/${Date.now()}-${receiptFile.name}`;
+        const path = buildReceiptPath(user.id, receiptFile);
         const { publicUrl } = await uploadFileCompat("uploads", path, receiptFile);
         receiptUrl = publicUrl;
-      } catch (e) {
+      } catch (e: any) {
         console.error("Receipt upload error:", e);
-        toast.error("خطأ في رفع الإيصال");
+        toast.error("خطأ في رفع الإيصال: " + (e?.message || "حاول مرة أخرى"));
         setBuying(false);
         return;
       }
     }
 
-    const isInstallment = lesson.lesson_type === "group" && paymentPlan === "installment" && installmentInfo;
+    try {
+      const isInstallment = lesson.lesson_type === "group" && paymentPlan === "installment" && installmentInfo;
 
-    const { data: bookingData, error } = await supabase.from("bookings").insert({
-      student_id: user.id,
-      lesson_id: lesson.id,
-      teacher_id: lesson.teacher_id,
-      amount: currentPayAmount,
-      payment_method: paymentMethod as any,
-      payment_receipt_url: receiptUrl,
-      status: "pending",
-      ...(isInstallment ? {
-        is_installment: true,
-        total_installments: installmentInfo!.numInstallments,
-        paid_sessions: isInstallment ? installmentInfo!.sessionsPerInstallment : undefined,
-      } : {}),
-    } as any).select().single();
-
-    if (error || !bookingData) {
-      toast.error("حدث خطأ في الحجز");
-    } else {
-      await supabase.from("invoices").insert({
-        booking_id: bookingData.id,
+      const { data: bookingData, error } = await supabase.from("bookings").insert({
         student_id: user.id,
-        teacher_id: lesson.teacher_id,
         lesson_id: lesson.id,
+        teacher_id: lesson.teacher_id,
         amount: currentPayAmount,
-        payment_method: paymentMethod,
+        payment_method: paymentMethod as any,
         payment_receipt_url: receiptUrl,
-      } as any);
+        status: "pending",
+        ...(isInstallment ? {
+          is_installment: true,
+          total_installments: installmentInfo!.numInstallments,
+          paid_sessions: isInstallment ? installmentInfo!.sessionsPerInstallment : undefined,
+        } : {}),
+      } as any).select().single();
 
-      if (isInstallment) {
-        await (supabase.from("course_installments" as any) as any).insert({
+      if (error || !bookingData) {
+        console.error("Booking insert error:", error);
+        toast.error("حدث خطأ في الحجز: " + (error?.message || ""));
+      } else {
+        await supabase.from("invoices").insert({
           booking_id: bookingData.id,
-          installment_number: 1,
-          amount: installmentInfo!.amountPerInstallment,
-          sessions_unlocked: installmentInfo!.sessionsPerInstallment,
-          status: "pending",
-        });
-      }
+          student_id: user.id,
+          teacher_id: lesson.teacher_id,
+          lesson_id: lesson.id,
+          amount: currentPayAmount,
+          payment_method: paymentMethod,
+          payment_receipt_url: receiptUrl,
+        } as any);
 
-      toast.success("تم إرسال الطلب بنجاح! سيتم مراجعة الفاتورة من الإدارة");
-      setBuyDialogOpen(false);
-      const { data } = await supabase.from("bookings").select("*").eq("lesson_id", id).eq("student_id", user.id);
-      setBookings(data ?? []);
+        if (isInstallment) {
+          await (supabase.from("course_installments" as any) as any).insert({
+            booking_id: bookingData.id,
+            installment_number: 1,
+            amount: installmentInfo!.amountPerInstallment,
+            sessions_unlocked: installmentInfo!.sessionsPerInstallment,
+            status: "pending",
+          });
+        }
+
+        toast.success("تم إرسال الطلب بنجاح! سيتم مراجعة الفاتورة من الإدارة");
+        setBuyDialogOpen(false);
+        const { data } = await supabase.from("bookings").select("*").eq("lesson_id", id).eq("student_id", user.id);
+        setBookings(data ?? []);
+      }
+    } catch (e: any) {
+      console.error("handleBuy unexpected error:", e);
+      toast.error("خطأ غير متوقع: " + (e?.message || "حاول مرة أخرى"));
     }
     setBuying(false);
   };
@@ -607,7 +613,7 @@ export default function LessonDetailPage() {
                             </div>
                             <div>
                               <Label>إرفاق صورة الإيصال</Label>
-                              <Input type="file" accept="image/*" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                              <Input type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.pdf" capture="environment" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
                             </div>
                           </div>
                         )}
