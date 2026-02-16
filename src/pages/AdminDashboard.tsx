@@ -75,6 +75,7 @@ export default function AdminDashboard() {
   const [contactInfo, setContactInfo] = useState<{ email: string; phone: string; whatsapp: string }>({ email: "", phone: "", whatsapp: "" });
   const [promoBanners, setPromoBanners] = useState<{ title: string; description: string; image_url?: string }[]>([]);
   const [homepageSectionsOrder, setHomepageSectionsOrder] = useState<string[]>(["announcements", "promo_banners", "lesson_types", "offers"]);
+  const [lessonTypesVisibility, setLessonTypesVisibility] = useState<Record<string, boolean>>({ tutoring: true, bag_review: true, group: true, skills: true });
 const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "cloud"; cloud_account_id: string; cloud_client_id: string; cloud_client_secret: string }>({ recording_mode: "manual", cloud_account_id: "", cloud_client_id: "", cloud_client_secret: "" });
   const [onesignalSettings, setOnesignalSettings] = useState<{ enabled: boolean; app_id: string; rest_api_key: string }>({ enabled: false, app_id: "", rest_api_key: "" });
 
@@ -248,6 +249,9 @@ const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "c
         }
         if (s.key === "homepage_sections_order" && Array.isArray(s.value)) {
           setHomepageSectionsOrder(s.value as any);
+        }
+        if (s.key === "lesson_types_visibility" && typeof s.value === "object" && s.value !== null) {
+          setLessonTypesVisibility(prev => ({ ...prev, ...(s.value as any) }));
         }
         if (s.key === "zoom_settings" && typeof s.value === "object" && s.value !== null) {
           const v = s.value as any;
@@ -492,6 +496,13 @@ const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "c
       updates.push(supabase.from("site_settings").update({ value: homepageSectionsOrder } as any).eq("key", "homepage_sections_order"));
     } else {
       updates.push(supabase.from("site_settings").insert({ key: "homepage_sections_order", value: homepageSectionsOrder } as any) as any);
+    }
+    // Upsert lesson_types_visibility
+    const { data: existingLTV } = await supabase.from("site_settings").select("id").eq("key", "lesson_types_visibility").maybeSingle();
+    if (existingLTV) {
+      updates.push(supabase.from("site_settings").update({ value: lessonTypesVisibility } as any).eq("key", "lesson_types_visibility"));
+    } else {
+      updates.push(supabase.from("site_settings").insert({ key: "lesson_types_visibility", value: lessonTypesVisibility } as any) as any);
     }
     // Upsert zoom_settings
     const { data: existingZoom } = await supabase.from("site_settings").select("id").eq("key", "zoom_settings").maybeSingle();
@@ -1374,42 +1385,69 @@ const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "c
 
               {/* ترتيب الصفحة الرئيسية */}
               {settingsSubTab === "homepage" && (
-                <div className="bg-card rounded-xl p-4 border border-border space-y-4">
-                  <h3 className="font-semibold text-sm flex items-center gap-2">
-                    <Eye className="h-4 w-4 text-primary" />
-                    ترتيب أقسام الصفحة الرئيسية
-                  </h3>
-                  <p className="text-xs text-muted-foreground">استخدم الأسهم لتغيير ترتيب الأقسام في الصفحة الرئيسية</p>
-                  <div className="space-y-2">
-                    {homepageSectionsOrder.map((sectionId, index) => {
-                      const sectionNames: Record<string, string> = {
-                        announcements: "الإعلانات والبانر الرئيسي",
-                        promo_banners: "بانرات الترويج",
-                        lesson_types: "أنواع الدروس",
-                        offers: "العروض والخصومات",
-                      };
-                      return (
-                        <div key={sectionId} className="flex items-center gap-2 p-3 border border-border rounded-lg bg-muted/30">
-                          <span className="text-sm font-medium flex-1">{sectionNames[sectionId] || sectionId}</span>
-                          <div className="flex gap-1">
-                            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={index === 0} onClick={() => {
-                              const newOrder = [...homepageSectionsOrder];
-                              [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
-                              setHomepageSectionsOrder(newOrder);
-                            }}>
-                              <ChevronDown className="h-3 w-3 rotate-180" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={index === homepageSectionsOrder.length - 1} onClick={() => {
-                              const newOrder = [...homepageSectionsOrder];
-                              [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
-                              setHomepageSectionsOrder(newOrder);
-                            }}>
-                              <ChevronDown className="h-3 w-3" />
-                            </Button>
+                <div className="space-y-4">
+                  <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                    <h3 className="font-semibold text-sm flex items-center gap-2">
+                      <Eye className="h-4 w-4 text-primary" />
+                      ترتيب أقسام الصفحة الرئيسية
+                    </h3>
+                    <p className="text-xs text-muted-foreground">استخدم الأسهم لتغيير ترتيب الأقسام في الصفحة الرئيسية</p>
+                    <div className="space-y-2">
+                      {homepageSectionsOrder.map((sectionId, index) => {
+                        const sectionNames: Record<string, string> = {
+                          announcements: "الإعلانات والبانر الرئيسي",
+                          promo_banners: "بانرات الترويج",
+                          lesson_types: "أنواع الدروس",
+                          offers: "العروض والخصومات",
+                        };
+                        return (
+                          <div key={sectionId} className="flex items-center gap-2 p-3 border border-border rounded-lg bg-muted/30">
+                            <span className="text-sm font-medium flex-1">{sectionNames[sectionId] || sectionId}</span>
+                            <div className="flex gap-1">
+                              <Button size="icon" variant="ghost" className="h-7 w-7" disabled={index === 0} onClick={() => {
+                                const newOrder = [...homepageSectionsOrder];
+                                [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+                                setHomepageSectionsOrder(newOrder);
+                              }}>
+                                <ChevronDown className="h-3 w-3 rotate-180" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" disabled={index === homepageSectionsOrder.length - 1} onClick={() => {
+                                const newOrder = [...homepageSectionsOrder];
+                                [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+                                setHomepageSectionsOrder(newOrder);
+                              }}>
+                                <ChevronDown className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* إظهار/إخفاء أنواع الدروس */}
+                  <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                    <h3 className="font-semibold text-sm flex items-center gap-2">
+                      <BookOpen className="h-4 w-4 text-primary" />
+                      إظهار / إخفاء أنواع الدروس
+                    </h3>
+                    <p className="text-xs text-muted-foreground">تحكم في أنواع الدروس التي تظهر في الصفحة الرئيسية</p>
+                    <div className="space-y-2">
+                      {[
+                        { id: "tutoring", label: "دروس فردية" },
+                        { id: "bag_review", label: "مراجعة الشنطة" },
+                        { id: "group", label: "دروس جماعية" },
+                        { id: "skills", label: "مهارات ومواهب" },
+                      ].map((type) => (
+                        <div key={type.id} className="flex items-center justify-between p-3 border border-border rounded-lg bg-muted/30">
+                          <span className="text-sm font-medium">{type.label}</span>
+                          <Switch
+                            checked={lessonTypesVisibility[type.id] !== false}
+                            onCheckedChange={(v) => setLessonTypesVisibility(prev => ({ ...prev, [type.id]: v }))}
+                          />
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

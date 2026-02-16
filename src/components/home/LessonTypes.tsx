@@ -3,8 +3,10 @@ import { BookOpen, Backpack, Sparkles, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
-const types = [
+const allTypes = [
   {
     id: "tutoring",
     title: "دروس فردية",
@@ -42,6 +44,15 @@ const types = [
 export function LessonTypes() {
   const { user } = useAuthContext();
   const navigate = useNavigate();
+  const [visibility, setVisibility] = useState<Record<string, boolean>>({ tutoring: true, bag_review: true, group: true, skills: true });
+
+  useEffect(() => {
+    supabase.from("site_settings").select("value").eq("key", "lesson_types_visibility").maybeSingle().then(({ data }) => {
+      if (data && typeof data.value === "object" && data.value !== null) {
+        setVisibility(prev => ({ ...prev, ...(data.value as any) }));
+      }
+    });
+  }, []);
 
   const handleClick = (path: string) => {
     if (!user) {
@@ -52,11 +63,15 @@ export function LessonTypes() {
     navigate(path);
   };
 
+  const visibleTypes = allTypes.filter(t => visibility[t.id] !== false);
+
+  if (visibleTypes.length === 0) return null;
+
   return (
     <section className="px-4 mt-8">
       <h2 className="text-lg font-bold mb-4">أنواع الدروس</h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {types.map((type, i) => (
+        {visibleTypes.map((type, i) => (
           <motion.div
             key={type.id}
             initial={{ opacity: 0, y: 20 }}
