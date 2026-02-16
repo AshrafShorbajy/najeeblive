@@ -3,9 +3,8 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Sets the OneSignal External User ID via Median.co's JavaScript Bridge.
- * When the web app runs inside a Median native wrapper, the global
- * `median` object is available and allows calling OneSignal APIs.
+ * Sets up OneSignal push notifications via Median.co's JavaScript Bridge.
+ * Handles: permission request, opt-in, login (external ID), and subscription verification.
  * On regular browsers this hook is a no-op.
  */
 export function useOneSignal() {
@@ -30,21 +29,36 @@ export function useOneSignal() {
       if (!median?.onesignal) return;
 
       try {
-        // Use the modern login method (OneSignal SDK v5+)
-        // This replaces the deprecated externalUserId.set()
+        // Step 1: Request notification permission (required for Android 13+)
+        if (typeof median.onesignal.requestPermission === "function") {
+          median.onesignal.requestPermission({ fallbackToSettings: true });
+          console.log("OneSignal requestPermission called");
+        }
+
+        // Step 2: Opt-in the user for push notifications
+        if (typeof median.onesignal.optIn === "function") {
+          median.onesignal.optIn();
+          console.log("OneSignal optIn called");
+        }
+
+        // Step 3: Set external user ID (login)
         if (typeof median.onesignal.login === "function") {
           median.onesignal.login(user.id);
           console.log("OneSignal login called with user ID:", user.id);
         } else if (median.onesignal.externalUserId) {
-          // Fallback for older SDK versions
           median.onesignal.externalUserId.set({ externalId: user.id });
           console.log("OneSignal externalUserId.set called:", user.id);
         }
 
-        // Retrieve OneSignal info to verify subscription
+        // Step 4: Retrieve info to verify subscription status
         if (typeof median.onesignal.info === "function") {
           median.onesignal.info().then((info: any) => {
             console.log("OneSignal info:", JSON.stringify(info));
+            // If still not subscribed, try opt-in again
+            if (info && !info.subscribed && typeof median.onesignal.optIn === "function") {
+              median.onesignal.optIn();
+              console.log("OneSignal re-optIn after check");
+            }
           }).catch(() => {});
         }
       } catch (err) {
@@ -57,9 +71,11 @@ export function useOneSignal() {
       console.log("OneSignal info callback:", JSON.stringify(info));
     };
 
-    setupOneSignal();
+    // Small delay to ensure Median bridge is fully initialized
+    const timer = setTimeout(setupOneSignal, 1500);
 
     return () => {
+      clearTimeout(timer);
       delete (window as any).median_onesignal_info;
     };
   }, [user]);
