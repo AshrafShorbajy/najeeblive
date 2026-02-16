@@ -138,8 +138,9 @@ export default function SchedulePage() {
     const { data: installments } = await (supabase.from("course_installments" as any) as any)
       .select("*").eq("booking_id", booking.id).order("installment_number");
     
-    const paidInstallments = (installments ?? []).filter((i: any) => i.status === "paid");
-    const nextNumber = paidInstallments.length + 1;
+    // Count all installments (paid + pending) to determine the next number
+    const allInstallments = installments ?? [];
+    const nextNumber = allInstallments.length + 1;
     
     // Get lesson price for calculation
     const { data: lesson } = await supabase.from("lessons").select("price, total_sessions").eq("id", booking.lesson_id).single();
@@ -164,7 +165,7 @@ export default function SchedulePage() {
     setPaying(true);
     try {
       // Create installment record
-      await (supabase.from("course_installments" as any) as any).insert({
+      const { error: instError } = await (supabase.from("course_installments" as any) as any).insert({
         booking_id: installPayBooking.id,
         installment_number: nextInstallmentInfo.installmentNumber,
         amount: nextInstallmentInfo.amount,
@@ -172,13 +173,15 @@ export default function SchedulePage() {
         status: "paid",
         paid_at: new Date().toISOString(),
       });
+      if (instError) { console.error("Installment insert error:", instError); throw instError; }
 
       // Update booking paid_sessions
       const newPaidSessions = (installPayBooking.paid_sessions || 0) + nextInstallmentInfo.sessionsToUnlock;
-      await supabase.from("bookings").update({ paid_sessions: newPaidSessions }).eq("id", installPayBooking.id);
+      const { error: bookingError } = await supabase.from("bookings").update({ paid_sessions: newPaidSessions }).eq("id", installPayBooking.id);
+      if (bookingError) { console.error("Booking update error:", bookingError); throw bookingError; }
 
       // Create paid invoice
-      await supabase.from("invoices").insert({
+      const { error: invoiceError } = await supabase.from("invoices").insert({
         booking_id: installPayBooking.id,
         student_id: user.id,
         teacher_id: installPayBooking.teacher_id,
@@ -187,6 +190,7 @@ export default function SchedulePage() {
         payment_method: "paypal",
         status: "paid",
       } as any);
+      if (invoiceError) { console.error("Invoice insert error:", invoiceError); throw invoiceError; }
 
       setBookings(prev => prev.map(b => b.id === installPayBooking.id ? { ...b, paid_sessions: newPaidSessions } : b));
       toast.success(`تم دفع الدفعة ${nextInstallmentInfo.installmentNumber} بنجاح! تم فتح ${nextInstallmentInfo.sessionsToUnlock} حصص إضافية`);
@@ -195,7 +199,7 @@ export default function SchedulePage() {
       if (viewingCourse?.id === installPayBooking.id) {
         setViewingCourse({ ...viewingCourse, paid_sessions: newPaidSessions });
       }
-    } catch { toast.error("خطأ في معالجة الدفع"); }
+    } catch (err: any) { console.error("PayPal installment error:", err); toast.error("خطأ في معالجة الدفع: " + (err?.message || "")); }
     finally { setPaying(false); }
   };
 
@@ -210,16 +214,17 @@ export default function SchedulePage() {
       const { data: { publicUrl } } = supabase.storage.from("uploads").getPublicUrl(path);
 
       // Create installment record (pending admin approval)
-      await (supabase.from("course_installments" as any) as any).insert({
+      const { error: instError } = await (supabase.from("course_installments" as any) as any).insert({
         booking_id: installPayBooking.id,
         installment_number: nextInstallmentInfo.installmentNumber,
         amount: nextInstallmentInfo.amount,
         sessions_unlocked: nextInstallmentInfo.sessionsToUnlock,
         status: "pending",
       });
+      if (instError) { console.error("Installment insert error:", instError); throw instError; }
 
       // Create pending invoice
-      await supabase.from("invoices").insert({
+      const { error: invoiceError } = await supabase.from("invoices").insert({
         booking_id: installPayBooking.id,
         student_id: user.id,
         teacher_id: installPayBooking.teacher_id,
@@ -228,10 +233,11 @@ export default function SchedulePage() {
         payment_method: "bank_transfer",
         payment_receipt_url: publicUrl,
       } as any);
+      if (invoiceError) { console.error("Invoice insert error:", invoiceError); throw invoiceError; }
 
       toast.success("تم إرسال طلب الدفعة بنجاح! سيتم مراجعة الإيصال من الإدارة");
       setInstallPayDialogOpen(false);
-    } catch { toast.error("خطأ في رفع الإيصال"); }
+    } catch (err: any) { console.error("Bank transfer error:", err); toast.error("خطأ في رفع الإيصال: " + (err?.message || "")); }
     finally { setPaying(false); }
   };
 

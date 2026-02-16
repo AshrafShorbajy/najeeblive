@@ -414,7 +414,7 @@ export type Database = {
           {
             foreignKeyName: "invoices_booking_id_fkey"
             columns: ["booking_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
