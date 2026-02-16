@@ -436,6 +436,114 @@ export default function SchedulePage() {
           <Button size="sm" variant="outline" className="w-full mt-4" onClick={() => openChat(viewingCourse)}>
             <MessageCircle className="h-4 w-4 ml-2" />مراسلة المعلم
           </Button>
+
+          {/* Installment Payment Dialog (inside course detail view) */}
+          <Dialog open={installPayDialogOpen} onOpenChange={setInstallPayDialogOpen}>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>دفع الدفعة التالية</DialogTitle>
+              </DialogHeader>
+              {nextInstallmentInfo && (
+                <div className="space-y-4">
+                  <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-sm space-y-1">
+                    <p className="font-semibold">{nextInstallmentInfo.lessonTitle}</p>
+                    <p>الدفعة {nextInstallmentInfo.installmentNumber} من {nextInstallmentInfo.totalInstallments}</p>
+                    <p>المبلغ المطلوب: <strong className="text-primary">{format(nextInstallmentInfo.amount)}</strong></p>
+                    <p className="text-xs text-muted-foreground">سيتم فتح {nextInstallmentInfo.sessionsToUnlock} حصص إضافية</p>
+                  </div>
+
+                  <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
+                    {paymentSettings?.paypal?.enabled && (
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="paypal" id="cv-inst-paypal" />
+                        <Label htmlFor="cv-inst-paypal" className="flex items-center gap-2">
+                          البطاقة الإئتمانية
+                          <div className="flex items-center gap-1">
+                            <img src="https://cdn-icons-png.flaticon.com/32/349/349221.png" alt="Visa" className="h-5" />
+                            <img src="https://cdn-icons-png.flaticon.com/32/349/349228.png" alt="Mastercard" className="h-5" />
+                          </div>
+                        </Label>
+                      </div>
+                    )}
+                    {paymentSettings?.bank_transfer?.enabled && (
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="bank_transfer" id="cv-inst-bank" />
+                        <Label htmlFor="cv-inst-bank">تحويل بنكي</Label>
+                      </div>
+                    )}
+                  </RadioGroup>
+
+                  {paymentMethod === "paypal" && paymentSettings?.paypal?.client_id && (
+                    <div className="space-y-3 paypal-card-only">
+                      <style>{`.paypal-card-only .paypal-powered-by { display: none !important; }`}</style>
+                      <PayPalScriptProvider
+                        key={`cv-inst-paypal-${paymentSettings.paypal.sandbox ? "sandbox" : "live"}-${paymentSettings.paypal.client_id.slice(-6)}`}
+                        options={{
+                          clientId: paymentSettings.paypal.client_id,
+                          currency: "USD",
+                          intent: "capture",
+                          components: "buttons",
+                          dataNamespace: "paypal_cv_inst_sdk",
+                        }}
+                      >
+                        <PayPalButtons
+                          fundingSource="card"
+                          style={{ layout: "vertical", shape: "rect", label: "pay", color: "black", tagline: false }}
+                          disabled={paying}
+                          createOrder={(_data: any, actions: any) => {
+                            return actions.order.create({
+                              intent: "CAPTURE",
+                              purchase_units: [{
+                                amount: { value: String(nextInstallmentInfo.amount), currency_code: "USD" },
+                                description: `${nextInstallmentInfo.lessonTitle} - الدفعة ${nextInstallmentInfo.installmentNumber}`,
+                              }],
+                              application_context: { shipping_preference: "NO_SHIPPING" },
+                            });
+                          }}
+                          onApprove={async (_data: any, actions: any) => {
+                            try {
+                              const order = await actions.order?.capture();
+                              if (order?.status === "COMPLETED") {
+                                await handleInstallmentPayPalSuccess(order);
+                              } else { toast.error("لم يتم إكمال الدفع"); }
+                            } catch { toast.error("حدث خطأ أثناء معالجة الدفع"); }
+                          }}
+                          onError={() => toast.error("حدث خطأ في PayPal")}
+                        />
+                      </PayPalScriptProvider>
+                    </div>
+                  )}
+
+                  {paymentMethod === "bank_transfer" && paymentSettings?.bank_transfer && (
+                    <div className="space-y-3">
+                      <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
+                        {paymentSettings.bank_transfer.bank_logo_url && (
+                          <img src={paymentSettings.bank_transfer.bank_logo_url} alt="لوجو البنك" className="h-10 w-auto object-contain" />
+                        )}
+                        <p className="font-medium">بيانات التحويل:</p>
+                        {paymentSettings.bank_transfer.account_number && (
+                          <p>رقم الحساب: <span dir="ltr" className="font-mono">{paymentSettings.bank_transfer.account_number}</span></p>
+                        )}
+                        {paymentSettings.bank_transfer.account_holder && (
+                          <p>اسم صاحب الحساب: {paymentSettings.bank_transfer.account_holder}</p>
+                        )}
+                        {paymentSettings.bank_transfer.branch && (
+                          <p>الفرع: {paymentSettings.bank_transfer.branch}</p>
+                        )}
+                      </div>
+                      <div>
+                        <Label>إرفاق صورة الإيصال</Label>
+                        <Input type="file" accept="image/*" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                      </div>
+                      <Button onClick={handleInstallmentBankTransfer} disabled={paying} className="w-full" variant="hero">
+                        {paying ? "جارٍ التحميل..." : "إتمام الدفع"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
       </AppLayout>
     );
