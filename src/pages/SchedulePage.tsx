@@ -550,7 +550,7 @@ export default function SchedulePage() {
                       </div>
                       <div>
                         <Label>إرفاق صورة الإيصال</Label>
-                        <Input type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.pdf" capture="environment" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                        <Input id="cameraImageInput" type="file" accept="image/*" {...{ capture: "camera" } as any} onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
                       </div>
                       <Button onClick={handleInstallmentBankTransfer} disabled={paying} className="w-full" variant="hero">
                         {paying ? "جارٍ التحميل..." : "إتمام الدفع"}
@@ -828,7 +828,7 @@ export default function SchedulePage() {
                   </div>
                   <div>
                     <Label>إرفاق صورة الإيصال</Label>
-                    <Input type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.pdf" capture="environment" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                    <Input id="cameraImageInput" type="file" accept="image/*" {...{ capture: "camera" } as any} onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
                   </div>
                   <Button onClick={handleInstallmentBankTransfer} disabled={paying} className="w-full" variant="hero">
                     {paying ? "جارٍ التحميل..." : "إتمام الدفع"}
