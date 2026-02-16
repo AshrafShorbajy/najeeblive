@@ -550,7 +550,7 @@ export default function SchedulePage() {
                       </div>
                       <div>
                         <Label>إرفاق صورة الإيصال</Label>
-                        <Input type="file" accept="image/*" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                        <input type="file" accept="image/*" className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" onClick={(e) => e.stopPropagation()} onChange={(e) => { e.stopPropagation(); setReceiptFile(e.target.files?.[0] ?? null); }} />
                       </div>
                       <Button onClick={handleInstallmentBankTransfer} disabled={paying} className="w-full" variant="hero">
                         {paying ? "جارٍ التحميل..." : "إتمام الدفع"}
@@ -828,7 +828,7 @@ export default function SchedulePage() {
                   </div>
                   <div>
                     <Label>إرفاق صورة الإيصال</Label>
-                    <Input type="file" accept="image/*" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                    <input type="file" accept="image/*" className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" onClick={(e) => e.stopPropagation()} onChange={(e) => { e.stopPropagation(); setReceiptFile(e.target.files?.[0] ?? null); }} />
                   </div>
                   <Button onClick={handleInstallmentBankTransfer} disabled={paying} className="w-full" variant="hero">
                     {paying ? "جارٍ التحميل..." : "إتمام الدفع"}
