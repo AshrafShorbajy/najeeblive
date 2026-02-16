@@ -397,8 +397,8 @@ export default function SchedulePage() {
               <span className="flex items-center gap-1"><Users className="h-3 w-3" />{courseEnrolledCount} طالب</span>
               <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />{viewingCourse.lessons?.total_sessions} حصة</span>
             </div>
-            {/* Installment payment warning */}
-            {(viewingCourse as any).is_installment && paidSessions < (viewingCourse.lessons?.total_sessions || 0) && (
+            {/* Installment payment warning - hidden when course is inactive/completed */}
+            {(viewingCourse as any).is_installment && paidSessions < (viewingCourse.lessons?.total_sessions || 0) && viewingCourse.status !== "completed" && (
               <div className="mt-3 p-3 rounded-lg bg-warning/10 border border-warning/20 text-sm space-y-2">
                 <p className="font-semibold text-warning mb-1">⚠️ يجب دفع الدفعة التالية</p>
                 <p className="text-xs text-muted-foreground">الحصص المدفوعة: {paidSessions} من {viewingCourse.lessons?.total_sessions}</p>
