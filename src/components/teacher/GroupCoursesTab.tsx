@@ -46,6 +46,7 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
   const [startingSessionId, setStartingSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingSessionDate, setEditingSessionDate] = useState("");
+  const [editingSessionTitle, setEditingSessionTitle] = useState("");
 
   useEffect(() => {
     fetchCourses();
@@ -313,11 +314,13 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
   const handleSaveSessionEdit = async (session: any) => {
     const updateData: any = {
       scheduled_at: editingSessionDate ? new Date(editingSessionDate).toISOString() : null,
+      title: editingSessionTitle.trim() || null,
     };
     await supabase.from("group_session_schedules").update(updateData).eq("id", session.id);
     toast.success("تم تعديل الحصة");
     setEditingSessionId(null);
     setEditingSessionDate("");
+    setEditingSessionTitle("");
     openManageSessions(managingCourse);
   };
 
@@ -370,20 +373,25 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
                   /* Inline edit mode */
                   <div className="space-y-3">
                     <div>
+                      <Label className="text-xs">اسم الحصة (اختياري)</Label>
+                      <Input placeholder={`حصة ${session.session_number}`} value={editingSessionTitle}
+                        onChange={e => setEditingSessionTitle(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
                       <Label className="text-xs">موعد الحصة</Label>
                       <Input type="datetime-local" value={editingSessionDate}
                         onChange={e => setEditingSessionDate(e.target.value)} className="mt-1" />
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" onClick={() => handleSaveSessionEdit(session)} className="flex-1">حفظ</Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditingSessionId(null)} className="flex-1">إلغاء</Button>
+                      <Button size="sm" variant="outline" onClick={() => { setEditingSessionId(null); setEditingSessionTitle(""); }} className="flex-1">إلغاء</Button>
                     </div>
                   </div>
                 ) : (
                   <>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-sm">حصة {session.session_number}</h3>
+                    <h3 className="font-semibold text-sm">{session.title || `حصة ${session.session_number}`}</h3>
                     {session.scheduled_at ? (
                       <p className="text-xs text-muted-foreground">{new Date(session.scheduled_at).toLocaleString("ar")}</p>
                     ) : (
@@ -399,6 +407,7 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
                           setEditingSessionId(session.id);
                           setEditingSessionDate(session.scheduled_at ? new Date(session.scheduled_at).toISOString().slice(0, 16) : "");
+                          setEditingSessionTitle(session.title || "");
                         }}>
                           <Edit className="h-3.5 w-3.5" />
                         </Button>
