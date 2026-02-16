@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/contexts/AuthContext";
@@ -99,12 +99,20 @@ export default function SchedulePage() {
     };
     loadBookings();
 
+    // Realtime: auto-refresh bookings and group sessions
     const channel = supabase
-      .channel("bookings-recordings")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "bookings" },
-        (payload) => {
-          const updated = payload.new as any;
-          setBookings(prev => prev.map(b => b.id === updated.id ? { ...b, ...updated } : b));
+      .channel("schedule-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" },
+        () => loadBookings())
+      .on("postgres_changes", { event: "*", schema: "public", table: "group_session_schedules" },
+        () => {
+          // Refresh course sessions if viewing a course
+          if (viewingCourse) {
+            supabase.from("group_session_schedules")
+              .select("*").eq("lesson_id", viewingCourse.lesson_id).order("session_number")
+              .then(({ data }) => setCourseSessions(data ?? []));
+          }
+          loadBookings();
         })
       .subscribe();
 

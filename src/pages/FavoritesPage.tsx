@@ -11,13 +11,25 @@ export default function FavoritesPage() {
   const { format } = useCurrency();
   const [favorites, setFavorites] = useState<any[]>([]);
 
-  useEffect(() => {
+  const loadFavorites = () => {
     if (!user) return;
     supabase
       .from("favorites")
       .select("*, lessons(*)")
       .eq("user_id", user.id)
       .then(({ data }) => setFavorites(data ?? []));
+  };
+
+  useEffect(() => {
+    loadFavorites();
+
+    if (!user) return;
+    const channel = supabase
+      .channel("favorites-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "favorites", filter: `user_id=eq.${user.id}` },
+        () => loadFavorites())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const removeFav = async (id: string) => {

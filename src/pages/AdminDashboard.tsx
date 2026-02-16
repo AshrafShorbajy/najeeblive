@@ -94,6 +94,21 @@ const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "c
     }
     setDataLoading(true);
     loadData().finally(() => setDataLoading(false));
+
+    // Realtime: auto-refresh admin data on key table changes
+    const channel = supabase
+      .channel("admin-dash-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" },
+        () => loadData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "invoices" },
+        () => loadData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests" },
+        () => loadData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "lessons" },
+        () => loadData())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user, loading, isAdmin, isSupervisor]);
 
   const loadData = async () => {

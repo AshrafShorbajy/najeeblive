@@ -81,6 +81,28 @@ export default function TeacherDashboard() {
       });
     fetchTeacherConversations();
     fetchTeacherUnread();
+
+    // Realtime: auto-refresh on bookings, lessons, withdrawals changes
+    const channel = supabase
+      .channel("teacher-dash-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter: `teacher_id=eq.${user.id}` },
+        () => { fetchBookings(); fetchAccountingRecords(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "lessons", filter: `teacher_id=eq.${user.id}` },
+        () => fetchLessons())
+      .on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests", filter: `teacher_id=eq.${user.id}` },
+        () => {
+          supabase.from("withdrawal_requests").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false })
+            .then(({ data }) => {
+              setWithdrawals(data ?? []);
+              setPendingWithdrawalsCount((data ?? []).filter(w => w.status === "pending").length);
+            });
+          fetchAccountingRecords();
+        })
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations", filter: `teacher_id=eq.${user.id}` },
+        () => fetchTeacherConversations())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   // Mark tab as viewed when switching

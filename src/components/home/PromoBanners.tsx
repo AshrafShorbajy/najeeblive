@@ -14,13 +14,22 @@ export function PromoBanners() {
   const [banners, setBanners] = useState<PromoBanner[]>([]);
   const [current, setCurrent] = useState(0);
 
-  useEffect(() => {
+  const loadBanners = () => {
     supabase.from("site_settings").select("value").eq("key", "promo_banners").single()
       .then(({ data }) => {
         if (data && Array.isArray(data.value) && data.value.length > 0) {
           setBanners(data.value as unknown as PromoBanner[]);
         }
       });
+  };
+
+  useEffect(() => {
+    loadBanners();
+    const channel = supabase
+      .channel("promo-banners-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, () => loadBanners())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   useEffect(() => {

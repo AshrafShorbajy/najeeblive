@@ -50,6 +50,16 @@ export default function MessagesPage() {
       setConversations(enriched);
     };
     loadConversations();
+
+    // Realtime: auto-refresh conversations list on new conversations or messages
+    const channel = supabase
+      .channel("messages-page-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" },
+        () => loadConversations())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" },
+        () => loadConversations())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   useEffect(() => {
