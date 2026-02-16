@@ -613,7 +613,7 @@ export default function LessonDetailPage() {
                             </div>
                             <div>
                               <Label>إرفاق صورة الإيصال</Label>
-                              <Input type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.pdf" capture="environment" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                              <Input id="cameraImageInput" type="file" accept="image/*" {...{ capture: "camera" } as any} onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
                             </div>
                           </div>
                         )}
