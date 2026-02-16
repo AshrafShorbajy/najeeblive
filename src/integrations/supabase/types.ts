@@ -102,8 +102,10 @@ export type Database = {
           amount: number
           created_at: string
           id: string
+          is_installment: boolean
           lesson_id: string
           notes: string | null
+          paid_sessions: number | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           payment_receipt_url: string | null
           recording_url: string | null
@@ -111,6 +113,7 @@ export type Database = {
           status: Database["public"]["Enums"]["booking_status"]
           student_id: string
           teacher_id: string
+          total_installments: number | null
           updated_at: string
           zoom_join_url: string | null
           zoom_meeting_id: string | null
@@ -120,8 +123,10 @@ export type Database = {
           amount?: number
           created_at?: string
           id?: string
+          is_installment?: boolean
           lesson_id: string
           notes?: string | null
+          paid_sessions?: number | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_receipt_url?: string | null
           recording_url?: string | null
@@ -129,6 +134,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["booking_status"]
           student_id: string
           teacher_id: string
+          total_installments?: number | null
           updated_at?: string
           zoom_join_url?: string | null
           zoom_meeting_id?: string | null
@@ -138,8 +144,10 @@ export type Database = {
           amount?: number
           created_at?: string
           id?: string
+          is_installment?: boolean
           lesson_id?: string
           notes?: string | null
+          paid_sessions?: number | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_receipt_url?: string | null
           recording_url?: string | null
@@ -147,6 +155,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["booking_status"]
           student_id?: string
           teacher_id?: string
+          total_installments?: number | null
           updated_at?: string
           zoom_join_url?: string | null
           zoom_meeting_id?: string | null
@@ -187,6 +196,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "conversations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_installments: {
+        Row: {
+          amount: number
+          booking_id: string
+          created_at: string
+          id: string
+          installment_number: number
+          paid_at: string | null
+          sessions_unlocked: number
+          status: string
+        }
+        Insert: {
+          amount?: number
+          booking_id: string
+          created_at?: string
+          id?: string
+          installment_number: number
+          paid_at?: string | null
+          sessions_unlocked?: number
+          status?: string
+        }
+        Update: {
+          amount?: number
+          booking_id?: string
+          created_at?: string
+          id?: string
+          installment_number?: number
+          paid_at?: string | null
+          sessions_unlocked?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_installments_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
