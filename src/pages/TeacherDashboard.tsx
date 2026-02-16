@@ -75,11 +75,7 @@ export default function TeacherDashboard() {
     fetchCommissionRate();
     supabase.from("curricula").select("*").then(({ data }) => setCurricula(data ?? []));
     supabase.from("skills_categories").select("*").then(({ data }) => setSkillCats(data ?? []));
-    supabase.from("withdrawal_requests").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setWithdrawals(data ?? []);
-        setPendingWithdrawalsCount((data ?? []).filter(w => w.status === "pending").length);
-      });
+    fetchWithdrawals();
     fetchTeacherConversations();
     fetchTeacherUnread();
 
@@ -92,11 +88,7 @@ export default function TeacherDashboard() {
         () => fetchLessons())
       .on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests", filter: `teacher_id=eq.${user.id}` },
         () => {
-          supabase.from("withdrawal_requests").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false })
-            .then(({ data }) => {
-              setWithdrawals(data ?? []);
-              setPendingWithdrawalsCount((data ?? []).filter(w => w.status === "pending").length);
-            });
+          fetchWithdrawals();
           fetchAccountingRecords();
         })
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations", filter: `teacher_id=eq.${user.id}` },
@@ -223,7 +215,9 @@ export default function TeacherDashboard() {
 
   const fetchAccountingRecords = async () => {
     if (!user) return;
-    const { data } = await supabase.from("accounting_records").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false });
+    const { data } = await supabase.from("accounting_records")
+      .select("*, bookings:booking_id(scheduled_at, lessons:lesson_id(title, lesson_type, course_start_date, total_sessions))")
+      .eq("teacher_id", user.id).order("created_at", { ascending: false });
     const records = data ?? [];
     setAccountingRecords(records);
     const totalTeacherShare = records.reduce((sum, r) => sum + Number(r.teacher_share), 0);
@@ -242,6 +236,14 @@ export default function TeacherDashboard() {
     if (data?.value && typeof data.value === "number") {
       setCommissionRate(data.value);
     }
+  };
+
+  const fetchWithdrawals = async () => {
+    if (!user) return;
+    // Fetch withdrawals and match them with accounting records to get lesson info
+    const { data } = await supabase.from("withdrawal_requests").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false });
+    setWithdrawals(data ?? []);
+    setPendingWithdrawalsCount((data ?? []).filter(w => w.status === "pending").length);
   };
 
   const fetchLessons = async () => {
@@ -901,18 +903,36 @@ export default function TeacherDashboard() {
               <div className="bg-card rounded-xl p-4 border border-border space-y-3">
                 <h3 className="font-semibold text-sm">سجل الأرباح</h3>
                 <div className="space-y-2">
-                  {accountingRecords.slice(0, 15).map(r => (
-                    <div key={r.id} className="border border-border rounded-lg p-3 text-xs space-y-1">
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">{new Date(r.created_at).toLocaleDateString("ar")}</span>
-                        <span className="font-medium">المبلغ: {format(r.total_amount)}</span>
+                  {accountingRecords.slice(0, 15).map(r => {
+                    const lesson = (r as any).bookings?.lessons;
+                    const booking = (r as any).bookings;
+                    return (
+                      <div key={r.id} className="border border-border rounded-lg p-3 text-xs space-y-1">
+                        {lesson && (
+                          <div className="font-semibold text-foreground">
+                            {lesson.title}
+                            <span className="text-muted-foreground font-normal mr-2">
+                              ({lesson.lesson_type === "group" ? "كورس" : lesson.lesson_type === "tutoring" ? "دروس خصوصية" : lesson.lesson_type === "skills" ? "مهارات" : "مراجعة حقيبة"})
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">
+                            {booking?.scheduled_at
+                              ? `التاريخ: ${new Date(booking.scheduled_at).toLocaleDateString("ar")}`
+                              : lesson?.course_start_date
+                                ? `بداية الكورس: ${new Date(lesson.course_start_date).toLocaleDateString("ar")}`
+                                : new Date(r.created_at).toLocaleDateString("ar")}
+                          </span>
+                          <span className="font-medium">المبلغ: {format(r.total_amount)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">العمولة ({r.commission_rate}%): {format(r.platform_share)}</span>
+                          <span className="font-bold text-success">صافي: {format(r.teacher_share)}</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">العمولة ({r.commission_rate}%): {format(r.platform_share)}</span>
-                        <span className="font-bold text-success">صافي: {format(r.teacher_share)}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -924,24 +944,54 @@ export default function TeacherDashboard() {
                   <span>طلبات السحب السابقة ({withdrawals.length})</span>
                 </summary>
                 <div className="px-4 pb-4 space-y-2">
-                  {withdrawals.map((w) => (
-                    <div key={w.id} className="p-3 rounded-lg border border-border space-y-2">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <span className="font-medium">{format(w.amount)}</span>
-                          <p className="text-xs text-muted-foreground">{new Date(w.created_at).toLocaleDateString("ar", { year: "numeric", month: "long", day: "numeric" })}</p>
+                  {withdrawals.map((w) => {
+                    // Find accounting records that relate to this withdrawal period
+                    const relatedRecords = accountingRecords.filter(r => 
+                      new Date(r.created_at) <= new Date(w.created_at)
+                    ).slice(0, 3);
+                    return (
+                      <div key={w.id} className="p-3 rounded-lg border border-border space-y-2">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <span className="font-medium">{format(w.amount)}</span>
+                            <p className="text-xs text-muted-foreground">تاريخ الطلب: {new Date(w.created_at).toLocaleDateString("ar", { year: "numeric", month: "long", day: "numeric" })}</p>
+                            {w.updated_at && w.status !== "pending" && (
+                              <p className="text-xs text-muted-foreground">تاريخ التنفيذ: {new Date(w.updated_at).toLocaleDateString("ar", { year: "numeric", month: "long", day: "numeric" })}</p>
+                            )}
+                          </div>
+                          <span className={`text-xs px-2 py-1 rounded-full ${w.status === "approved" ? "bg-success/10 text-success" : w.status === "rejected" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
+                            {w.status === "pending" ? "قيد المراجعة" : w.status === "approved" ? "مقبول" : "مرفوض"}
+                          </span>
                         </div>
-                        <span className={`text-xs px-2 py-1 rounded-full ${w.status === "approved" ? "bg-success/10 text-success" : w.status === "rejected" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
-                          {w.status === "pending" ? "قيد المراجعة" : w.status === "approved" ? "مقبول" : "مرفوض"}
-                        </span>
+                        {relatedRecords.length > 0 && (
+                          <div className="bg-muted/30 rounded-lg p-2 space-y-1">
+                            <p className="text-[10px] text-muted-foreground font-semibold">الحصص المرتبطة:</p>
+                            {relatedRecords.map(r => {
+                              const lesson = (r as any).bookings?.lessons;
+                              const booking = (r as any).bookings;
+                              return (
+                                <div key={r.id} className="text-[11px] flex justify-between">
+                                  <span>{lesson?.title || "حصة"}</span>
+                                  <span className="text-muted-foreground">
+                                    {booking?.scheduled_at
+                                      ? new Date(booking.scheduled_at).toLocaleDateString("ar")
+                                      : lesson?.course_start_date
+                                        ? new Date(lesson.course_start_date).toLocaleDateString("ar")
+                                        : new Date(r.created_at).toLocaleDateString("ar")}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {w.status === "approved" && (w as any).receipt_url && (
+                          <a href={(w as any).receipt_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline flex items-center gap-1">
+                            عرض إيصال التحويل
+                          </a>
+                        )}
                       </div>
-                      {w.status === "approved" && (w as any).receipt_url && (
-                        <a href={(w as any).receipt_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline flex items-center gap-1">
-                          عرض إيصال التحويل
-                        </a>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </details>
             )}
