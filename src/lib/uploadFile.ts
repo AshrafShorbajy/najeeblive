@@ -1,12 +1,26 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
+ * Sanitise a filename coming from a WebView file picker.
+ * Some Android WebViews return empty or garbage names.
+ */
+function safeFileName(file: File): string {
+  const name = file.name;
+  if (name && name !== "undefined" && name !== "null" && name.length > 0) {
+    // Remove problematic characters
+    return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  }
+  // Fallback: derive extension from MIME type
+  const ext = (file.type || "application/octet-stream").split("/").pop() || "bin";
+  return `file_${Date.now()}.${ext}`;
+}
+
+/**
  * Read a File into a Uint8Array using FileReader (maximum WebView compat).
  * Falls back to file.arrayBuffer() if FileReader is unavailable.
  */
 function readFileAsUint8Array(file: File): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
-    // Prefer FileReader – works in every WebView including Median.co / GoNative
     if (typeof FileReader !== "undefined") {
       const reader = new FileReader();
       reader.onload = () => {
@@ -28,8 +42,11 @@ function readFileAsUint8Array(file: File): Promise<Uint8Array> {
 
 /**
  * Upload a file to Supabase Storage in a way that works reliably
- * on Android WebViews (Median.co / GoNative) by reading the File
- * via FileReader first, then uploading the resulting Uint8Array.
+ * on Android WebViews (Median.co / GoNative).
+ *
+ * 1. Reads via FileReader (broadest WebView support)
+ * 2. Sanitises filename to avoid encoding issues
+ * 3. Provides a safe content-type fallback
  */
 export async function uploadFileCompat(
   bucket: string,
@@ -37,12 +54,18 @@ export async function uploadFileCompat(
   file: File,
   options?: { upsert?: boolean }
 ): Promise<{ publicUrl: string }> {
+  // Read file content
   const uint8 = await readFileAsUint8Array(file);
+
+  // Determine a safe content type
+  const contentType = file.type && file.type.length > 0
+    ? file.type
+    : "application/octet-stream";
 
   const { error } = await supabase.storage
     .from(bucket)
     .upload(path, uint8, {
-      contentType: file.type || "application/octet-stream",
+      contentType,
       upsert: options?.upsert ?? false,
     });
 
@@ -53,4 +76,12 @@ export async function uploadFileCompat(
   } = supabase.storage.from(bucket).getPublicUrl(path);
 
   return { publicUrl };
+}
+
+/**
+ * Helper to build a safe storage path for receipt uploads.
+ * Handles cases where file.name is undefined/empty on Android WebView.
+ */
+export function buildReceiptPath(userId: string, file: File): string {
+  return `${userId}/${Date.now()}-${safeFileName(file)}`;
 }

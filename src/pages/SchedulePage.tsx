@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { VideoPlayer } from "@/components/schedule/VideoPlayer";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { uploadFileCompat } from "@/lib/uploadFile";
+import { uploadFileCompat, buildReceiptPath } from "@/lib/uploadFile";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
@@ -218,7 +218,7 @@ export default function SchedulePage() {
     if (!receiptFile) { toast.error("يجب إرفاق صورة إيصال التحويل البنكي"); return; }
     setPaying(true);
     try {
-      const path = `${user.id}/${Date.now()}-${receiptFile.name}`;
+      const path = buildReceiptPath(user.id, receiptFile);
       const { publicUrl } = await uploadFileCompat("uploads", path, receiptFile);
 
       // Create installment record (pending admin approval)
@@ -550,7 +550,7 @@ export default function SchedulePage() {
                       </div>
                       <div>
                         <Label>إرفاق صورة الإيصال</Label>
-                        <Input type="file" accept="image/*" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                        <Input type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.pdf" capture="environment" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
                       </div>
                       <Button onClick={handleInstallmentBankTransfer} disabled={paying} className="w-full" variant="hero">
                         {paying ? "جارٍ التحميل..." : "إتمام الدفع"}
@@ -828,7 +828,7 @@ export default function SchedulePage() {
                   </div>
                   <div>
                     <Label>إرفاق صورة الإيصال</Label>
-                    <Input type="file" accept="image/*" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                    <Input type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.pdf" capture="environment" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
                   </div>
                   <Button onClick={handleInstallmentBankTransfer} disabled={paying} className="w-full" variant="hero">
                     {paying ? "جارٍ التحميل..." : "إتمام الدفع"}
