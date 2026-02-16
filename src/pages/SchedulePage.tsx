@@ -5,11 +5,15 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Video, Clock, CheckCircle, User, MessageCircle, Send, ArrowRight, Upload, PlayCircle, Loader2, Users, CalendarDays, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { VideoPlayer } from "@/components/schedule/VideoPlayer";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 export default function SchedulePage() {
   const { user, isTeacher } = useAuthContext();
@@ -30,6 +34,14 @@ export default function SchedulePage() {
   const [courseSessions, setCourseSessions] = useState<any[]>([]);
   const [courseEnrolledCount, setCourseEnrolledCount] = useState(0);
 
+  // Installment payment state
+  const [installPayDialogOpen, setInstallPayDialogOpen] = useState(false);
+  const [installPayBooking, setInstallPayBooking] = useState<any>(null);
+  const [paymentSettings, setPaymentSettings] = useState<any>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string>("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [paying, setPaying] = useState(false);
+  const [nextInstallmentInfo, setNextInstallmentInfo] = useState<any>(null);
   useEffect(() => {
     if (!user) return;
     const loadBookings = async () => {
@@ -97,6 +109,131 @@ export default function SchedulePage() {
 
     return () => { supabase.removeChannel(channel); };
   }, [user]);
+  // Fetch payment settings
+  useEffect(() => {
+    supabase.from("site_settings").select("value").eq("key", "payment_methods").single()
+      .then(({ data }) => {
+        if (data?.value) {
+          const ps = data.value as any;
+          setPaymentSettings(ps);
+          if (ps.paypal?.enabled) setPaymentMethod("paypal");
+          else if (ps.bank_transfer?.enabled) setPaymentMethod("bank_transfer");
+        }
+      });
+  }, []);
+
+  const getInstallmentInfo = (totalSessions: number, totalPrice: number) => {
+    if (!totalSessions || totalSessions <= 5) return null;
+    let numInstallments = 2;
+    if (totalSessions >= 11 && totalSessions <= 20) numInstallments = 4;
+    else if (totalSessions >= 21 && totalSessions <= 50) numInstallments = 6;
+    const sessionsPerInstallment = Math.ceil(totalSessions / numInstallments);
+    const amountPerInstallment = Math.ceil((totalPrice / numInstallments) * 100) / 100;
+    return { numInstallments, sessionsPerInstallment, amountPerInstallment };
+  };
+
+  const openInstallmentPayment = async (booking: any) => {
+    setInstallPayBooking(booking);
+    // Fetch existing installments to determine the next one
+    const { data: installments } = await (supabase.from("course_installments" as any) as any)
+      .select("*").eq("booking_id", booking.id).order("installment_number");
+    
+    const paidInstallments = (installments ?? []).filter((i: any) => i.status === "paid");
+    const nextNumber = paidInstallments.length + 1;
+    
+    // Get lesson price for calculation
+    const { data: lesson } = await supabase.from("lessons").select("price, total_sessions").eq("id", booking.lesson_id).single();
+    if (!lesson) { toast.error("خطأ في تحميل بيانات الكورس"); return; }
+
+    const info = getInstallmentInfo(lesson.total_sessions!, lesson.price);
+    if (!info) { toast.error("هذا الكورس لا يدعم الأقساط"); return; }
+
+    setNextInstallmentInfo({
+      installmentNumber: nextNumber,
+      amount: info.amountPerInstallment,
+      sessionsToUnlock: info.sessionsPerInstallment,
+      totalInstallments: info.numInstallments,
+      lessonTitle: booking.lessons?.title,
+    });
+    setReceiptFile(null);
+    setInstallPayDialogOpen(true);
+  };
+
+  const handleInstallmentPayPalSuccess = async (orderData: any) => {
+    if (!user || !installPayBooking || !nextInstallmentInfo) return;
+    setPaying(true);
+    try {
+      // Create installment record
+      await (supabase.from("course_installments" as any) as any).insert({
+        booking_id: installPayBooking.id,
+        installment_number: nextInstallmentInfo.installmentNumber,
+        amount: nextInstallmentInfo.amount,
+        sessions_unlocked: nextInstallmentInfo.sessionsToUnlock,
+        status: "paid",
+        paid_at: new Date().toISOString(),
+      });
+
+      // Update booking paid_sessions
+      const newPaidSessions = (installPayBooking.paid_sessions || 0) + nextInstallmentInfo.sessionsToUnlock;
+      await supabase.from("bookings").update({ paid_sessions: newPaidSessions }).eq("id", installPayBooking.id);
+
+      // Create paid invoice
+      await supabase.from("invoices").insert({
+        booking_id: installPayBooking.id,
+        student_id: user.id,
+        teacher_id: installPayBooking.teacher_id,
+        lesson_id: installPayBooking.lesson_id,
+        amount: nextInstallmentInfo.amount,
+        payment_method: "paypal",
+        status: "paid",
+      } as any);
+
+      setBookings(prev => prev.map(b => b.id === installPayBooking.id ? { ...b, paid_sessions: newPaidSessions } : b));
+      toast.success(`تم دفع الدفعة ${nextInstallmentInfo.installmentNumber} بنجاح! تم فتح ${nextInstallmentInfo.sessionsToUnlock} حصص إضافية`);
+      setInstallPayDialogOpen(false);
+      // Refresh course detail
+      if (viewingCourse?.id === installPayBooking.id) {
+        setViewingCourse({ ...viewingCourse, paid_sessions: newPaidSessions });
+      }
+    } catch { toast.error("خطأ في معالجة الدفع"); }
+    finally { setPaying(false); }
+  };
+
+  const handleInstallmentBankTransfer = async () => {
+    if (!user || !installPayBooking || !nextInstallmentInfo) return;
+    if (!receiptFile) { toast.error("يجب إرفاق صورة إيصال التحويل البنكي"); return; }
+    setPaying(true);
+    try {
+      const path = `${user.id}/${Date.now()}-${receiptFile.name}`;
+      const { error: uploadError } = await supabase.storage.from("uploads").upload(path, receiptFile);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from("uploads").getPublicUrl(path);
+
+      // Create installment record (pending admin approval)
+      await (supabase.from("course_installments" as any) as any).insert({
+        booking_id: installPayBooking.id,
+        installment_number: nextInstallmentInfo.installmentNumber,
+        amount: nextInstallmentInfo.amount,
+        sessions_unlocked: nextInstallmentInfo.sessionsToUnlock,
+        status: "pending",
+      });
+
+      // Create pending invoice
+      await supabase.from("invoices").insert({
+        booking_id: installPayBooking.id,
+        student_id: user.id,
+        teacher_id: installPayBooking.teacher_id,
+        lesson_id: installPayBooking.lesson_id,
+        amount: nextInstallmentInfo.amount,
+        payment_method: "bank_transfer",
+        payment_receipt_url: publicUrl,
+      } as any);
+
+      toast.success("تم إرسال طلب الدفعة بنجاح! سيتم مراجعة الإيصال من الإدارة");
+      setInstallPayDialogOpen(false);
+    } catch { toast.error("خطأ في رفع الإيصال"); }
+    finally { setPaying(false); }
+  };
 
   // Upload recording handler (teacher only, individual lessons)
   const handleUploadRecording = async (bookingId: string, teacherId: string) => {
@@ -244,7 +381,7 @@ export default function SchedulePage() {
                 <p className="font-semibold text-warning mb-1">⚠️ يجب دفع الدفعة التالية</p>
                 <p className="text-xs text-muted-foreground">الحصص المدفوعة: {paidSessions} من {viewingCourse.lessons?.total_sessions}</p>
                 <Button size="sm" variant="hero" className="w-full"
-                  onClick={() => navigate(`/lesson/${viewingCourse.lesson_id}`)}>
+                  onClick={() => openInstallmentPayment(viewingCourse)}>
                   <CreditCard className="h-4 w-4 ml-2" />دفع الدفعة التالية
                 </Button>
               </div>
@@ -466,6 +603,117 @@ export default function SchedulePage() {
           })}
         </Tabs>
       </div>
+
+      {/* Installment Payment Dialog */}
+      <Dialog open={installPayDialogOpen} onOpenChange={setInstallPayDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>دفع الدفعة التالية</DialogTitle>
+          </DialogHeader>
+          {nextInstallmentInfo && (
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-sm space-y-1">
+                <p className="font-semibold">{nextInstallmentInfo.lessonTitle}</p>
+                <p>الدفعة {nextInstallmentInfo.installmentNumber} من {nextInstallmentInfo.totalInstallments}</p>
+                <p>المبلغ المطلوب: <strong className="text-primary">{format(nextInstallmentInfo.amount)}</strong></p>
+                <p className="text-xs text-muted-foreground">سيتم فتح {nextInstallmentInfo.sessionsToUnlock} حصص إضافية</p>
+              </div>
+
+              <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
+                {paymentSettings?.paypal?.enabled && (
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="paypal" id="inst-paypal" />
+                    <Label htmlFor="inst-paypal" className="flex items-center gap-2">
+                      البطاقة الإئتمانية
+                      <div className="flex items-center gap-1">
+                        <img src="https://cdn-icons-png.flaticon.com/32/349/349221.png" alt="Visa" className="h-5" />
+                        <img src="https://cdn-icons-png.flaticon.com/32/349/349228.png" alt="Mastercard" className="h-5" />
+                      </div>
+                    </Label>
+                  </div>
+                )}
+                {paymentSettings?.bank_transfer?.enabled && (
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="bank_transfer" id="inst-bank" />
+                    <Label htmlFor="inst-bank">تحويل بنكي</Label>
+                  </div>
+                )}
+              </RadioGroup>
+
+              {paymentMethod === "paypal" && paymentSettings?.paypal?.client_id && (
+                <div className="space-y-3 paypal-card-only">
+                  <style>{`
+                    .paypal-card-only .paypal-powered-by,
+                    .paypal-card-only [data-funding-source] .paypal-powered-by { display: none !important; }
+                  `}</style>
+                  <PayPalScriptProvider
+                    key={`inst-paypal-${paymentSettings.paypal.sandbox ? "sandbox" : "live"}-${paymentSettings.paypal.client_id.slice(-6)}`}
+                    options={{
+                      clientId: paymentSettings.paypal.client_id,
+                      currency: "USD",
+                      intent: "capture",
+                      components: "buttons",
+                      dataNamespace: "paypal_inst_sdk",
+                    }}
+                  >
+                    <PayPalButtons
+                      fundingSource="card"
+                      style={{ layout: "vertical", shape: "rect", label: "pay", color: "black", tagline: false }}
+                      disabled={paying}
+                      createOrder={(_data: any, actions: any) => {
+                        return actions.order.create({
+                          intent: "CAPTURE",
+                          purchase_units: [{
+                            amount: { value: String(nextInstallmentInfo.amount), currency_code: "USD" },
+                            description: `${nextInstallmentInfo.lessonTitle} - الدفعة ${nextInstallmentInfo.installmentNumber}`,
+                          }],
+                          application_context: { shipping_preference: "NO_SHIPPING" },
+                        });
+                      }}
+                      onApprove={async (_data: any, actions: any) => {
+                        try {
+                          const order = await actions.order?.capture();
+                          if (order?.status === "COMPLETED") {
+                            await handleInstallmentPayPalSuccess(order);
+                          } else { toast.error("لم يتم إكمال الدفع"); }
+                        } catch { toast.error("حدث خطأ أثناء معالجة الدفع"); }
+                      }}
+                      onError={() => toast.error("حدث خطأ في PayPal")}
+                    />
+                  </PayPalScriptProvider>
+                </div>
+              )}
+
+              {paymentMethod === "bank_transfer" && paymentSettings?.bank_transfer && (
+                <div className="space-y-3">
+                  <div className="p-3 rounded-lg bg-muted text-sm space-y-2">
+                    {paymentSettings.bank_transfer.bank_logo_url && (
+                      <img src={paymentSettings.bank_transfer.bank_logo_url} alt="لوجو البنك" className="h-10 w-auto object-contain" />
+                    )}
+                    <p className="font-medium">بيانات التحويل:</p>
+                    {paymentSettings.bank_transfer.account_number && (
+                      <p>رقم الحساب: <span dir="ltr" className="font-mono">{paymentSettings.bank_transfer.account_number}</span></p>
+                    )}
+                    {paymentSettings.bank_transfer.account_holder && (
+                      <p>اسم صاحب الحساب: {paymentSettings.bank_transfer.account_holder}</p>
+                    )}
+                    {paymentSettings.bank_transfer.branch && (
+                      <p>الفرع: {paymentSettings.bank_transfer.branch}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label>إرفاق صورة الإيصال</Label>
+                    <Input type="file" accept="image/*" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} className="mt-1" />
+                  </div>
+                  <Button onClick={handleInstallmentBankTransfer} disabled={paying} className="w-full" variant="hero">
+                    {paying ? "جارٍ التحميل..." : "إتمام الدفع"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
