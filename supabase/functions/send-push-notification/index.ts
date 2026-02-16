@@ -170,11 +170,11 @@ serve(async (req) => {
           };
         }
 
-        const osResponse = await fetch("https://api.onesignal.com/notifications", {
+        const osResponse = await fetch("https://onesignal.com/api/v1/notifications", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Key ${onesignal.rest_api_key}`,
+            "Authorization": `Basic ${onesignal.rest_api_key}`,
           },
           body: JSON.stringify(osPayload),
         });
