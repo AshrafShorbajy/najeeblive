@@ -4,8 +4,11 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Send } from "lucide-react";
+import { Send, Image as ImageIcon, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { uploadFileCompat } from "@/lib/uploadFile";
+import { toast } from "@/hooks/use-toast";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 export default function MessagesPage() {
   const { user } = useAuthContext();
@@ -13,16 +16,22 @@ export default function MessagesPage() {
   const [activeConv, setActiveConv] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [newMsg, setNewMsg] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [viewImage, setViewImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user) return;
     const loadConversations = async () => {
+      // Load conversations
       const { data } = await supabase
         .from("conversations")
         .select("*, bookings:booking_id(status, lessons:lesson_id(title))")
         .or(`student_id.eq.${user.id},teacher_id.eq.${user.id}`);
-      
+
       if (!data || data.length === 0) {
         setConversations([]);
         return;
@@ -31,27 +40,41 @@ export default function MessagesPage() {
       const userIds = [...new Set(data.flatMap(c => [c.student_id, c.teacher_id]))];
       const convIds = data.map(c => c.id);
 
-      const [{ data: profiles }, { data: unreadMsgs }] = await Promise.all([
+      const [{ data: profiles }, { data: unreadMsgs }, { data: lastMessages }] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name").in("user_id", userIds),
         supabase.from("messages").select("conversation_id").in("conversation_id", convIds).neq("sender_id", user.id).eq("is_read", false),
+        // Get last message per conversation for sorting
+        supabase.from("messages").select("conversation_id, created_at").in("conversation_id", convIds).order("created_at", { ascending: false }),
       ]);
-      
+
       const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) ?? []);
       const unreadMap = new Map<string, number>();
       unreadMsgs?.forEach(m => unreadMap.set(m.conversation_id, (unreadMap.get(m.conversation_id) ?? 0) + 1));
-      
+
+      // Build map of latest message time per conversation
+      const lastMsgMap = new Map<string, string>();
+      lastMessages?.forEach(m => {
+        if (!lastMsgMap.has(m.conversation_id)) {
+          lastMsgMap.set(m.conversation_id, m.created_at);
+        }
+      });
+
       const enriched = data.map(c => ({
         ...c,
         student_name: profileMap.get(c.student_id) ?? "طالب",
         teacher_name: profileMap.get(c.teacher_id) ?? "معلم",
         lesson_title: (c.bookings as any)?.lessons?.title ?? null,
         unread_count: unreadMap.get(c.id) ?? 0,
+        last_activity: lastMsgMap.get(c.id) ?? c.created_at,
       }));
+
+      // Sort by latest activity (newest first)
+      enriched.sort((a, b) => new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime());
+
       setConversations(enriched);
     };
     loadConversations();
 
-    // Realtime: auto-refresh conversations list on new conversations or messages
     const channel = supabase
       .channel("messages-page-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" },
@@ -87,7 +110,6 @@ export default function MessagesPage() {
         (payload) => {
           const msg = payload.new as any;
           setMessages((prev) => [...prev, msg]);
-          // Auto-mark incoming messages as read if from the other person
           if (msg.sender_id !== user.id && !msg.is_read) {
             supabase.from("messages").update({ is_read: true }).eq("id", msg.id).then();
           }
@@ -102,14 +124,53 @@ export default function MessagesPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "يرجى اختيار صورة فقط", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "حجم الصورة يجب أن لا يتجاوز 5 ميجابايت", variant: "destructive" });
+      return;
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const clearImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const sendMessage = async () => {
-    if (!newMsg.trim() || !activeConv || !user) return;
-    await supabase.from("messages").insert({
-      conversation_id: activeConv,
-      sender_id: user.id,
-      content: newMsg.trim(),
-    });
-    setNewMsg("");
+    if ((!newMsg.trim() && !imageFile) || !activeConv || !user) return;
+    setSending(true);
+    try {
+      let uploadedImageUrl: string | null = null;
+
+      if (imageFile) {
+        const ext = imageFile.name.split(".").pop() || "jpg";
+        const path = `chat/${activeConv}/${Date.now()}.${ext}`;
+        const { publicUrl } = await uploadFileCompat("uploads", path, imageFile, { upsert: false });
+        uploadedImageUrl = publicUrl;
+      }
+
+      await supabase.from("messages").insert({
+        conversation_id: activeConv,
+        sender_id: user.id,
+        content: newMsg.trim() || (uploadedImageUrl ? "📷 صورة" : ""),
+        image_url: uploadedImageUrl,
+      });
+      setNewMsg("");
+      clearImage();
+    } catch (err: any) {
+      toast({ title: "فشل إرسال الرسالة", description: err.message, variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
   };
 
   const getOtherName = (conv: any) => {
@@ -184,23 +245,63 @@ export default function MessagesPage() {
                 {messages.map((m) => (
                   <div key={m.id} className={`flex ${m.sender_id === user?.id ? "justify-start" : "justify-end"}`}>
                     <div className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${m.sender_id === user?.id ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                      {m.content}
+                      {m.image_url && (
+                        <img
+                          src={m.image_url}
+                          alt="صورة مرفقة"
+                          className="rounded-lg max-w-full max-h-48 object-cover mb-1 cursor-pointer"
+                          onClick={() => setViewImage(m.image_url)}
+                        />
+                      )}
+                      {m.content && !(m.image_url && m.content === "📷 صورة") && (
+                        <span>{m.content}</span>
+                      )}
                     </div>
                   </div>
                 ))}
                 <div ref={messagesEndRef} />
               </div>
               {!isReadOnly && (
-                <div className="p-3 border-t border-border flex gap-2">
-                  <Input
-                    value={newMsg}
-                    onChange={(e) => setNewMsg(e.target.value)}
-                    placeholder="اكتب رسالتك..."
-                    onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                  />
-                  <Button onClick={sendMessage} size="icon" variant="hero">
-                    <Send className="h-4 w-4" />
-                  </Button>
+                <div className="p-3 border-t border-border">
+                  {imagePreview && (
+                    <div className="relative inline-block mb-2">
+                      <img src={imagePreview} alt="معاينة" className="h-20 rounded-lg object-cover" />
+                      <button
+                        onClick={clearImage}
+                        className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageSelect}
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={sending}
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                    </Button>
+                    <Input
+                      value={newMsg}
+                      onChange={(e) => setNewMsg(e.target.value)}
+                      placeholder="اكتب رسالتك..."
+                      onKeyDown={(e) => e.key === "Enter" && !sending && sendMessage()}
+                      disabled={sending}
+                    />
+                    <Button onClick={sendMessage} size="icon" variant="hero" disabled={sending}>
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               )}
             </>
@@ -211,6 +312,13 @@ export default function MessagesPage() {
           )}
         </div>
       </div>
+
+      {/* Image viewer dialog */}
+      <Dialog open={!!viewImage} onOpenChange={() => setViewImage(null)}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] p-2">
+          {viewImage && <img src={viewImage} alt="صورة" className="w-full h-full object-contain rounded-lg" />}
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
