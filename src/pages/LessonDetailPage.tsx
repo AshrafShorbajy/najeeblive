@@ -112,8 +112,12 @@ export default function LessonDetailPage() {
         if (data?.value) {
           const ps = data.value as any;
           setPaymentSettings(ps);
-          if (ps.paypal?.enabled) setPaymentMethod("paypal");
-          else if (ps.bank_transfer?.enabled) setPaymentMethod("bank_transfer");
+          setPaymentMethod(prev => {
+            if (prev) return prev; // Don't reset if already selected
+            if (ps.paypal?.enabled) return "paypal";
+            if (ps.bank_transfer?.enabled) return "bank_transfer";
+            return "";
+          });
         }
       });
   }, [id, user]);
