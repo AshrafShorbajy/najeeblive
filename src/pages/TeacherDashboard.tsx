@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { validateScheduleSlot } from "@/lib/scheduleValidation";
 import { Plus, Edit, DollarSign, Calendar, CheckCircle, XCircle, MessageCircle, Send, ArrowRight, Users } from "lucide-react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import GroupCoursesTab from "@/components/teacher/GroupCoursesTab";
@@ -420,17 +421,32 @@ export default function TeacherDashboard() {
     const booking = bookings.find((b) => b.id === scheduleBookingId);
     if (!booking) return;
 
+    const proposedStart = new Date(scheduleDate);
+    const duration = (booking as any).lessons?.duration_minutes || 60;
+
+    // Validate: no past dates, no overlapping
+    const validationError = await validateScheduleSlot(
+      booking.teacher_id,
+      proposedStart,
+      duration,
+      scheduleBookingId
+    );
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
     const { data: zoomData, error: zoomError } = await supabase.functions.invoke("create-zoom-meeting", {
       body: {
         topic: (booking as any).lessons?.title ?? "حصة",
-        duration: 60,
-        start_time: new Date(scheduleDate).toISOString(),
+        duration: duration,
+        start_time: proposedStart.toISOString(),
       },
     });
 
     const updateData: any = {
       status: "scheduled",
-      scheduled_at: new Date(scheduleDate).toISOString(),
+      scheduled_at: proposedStart.toISOString(),
     };
 
     if (zoomData && !zoomError) {
