@@ -620,9 +620,10 @@ export default function LessonDetailPage() {
                                 type="file"
                                 id="receiptFileInput"
                                 accept="image/*"
-                                capture="environment"
                                 className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                onClick={(e) => e.stopPropagation()}
                                 onChange={(e) => {
+                                  e.stopPropagation();
                                   const file = e.target.files?.[0] ?? null;
                                   setReceiptFile(file);
                                   if (file) {
