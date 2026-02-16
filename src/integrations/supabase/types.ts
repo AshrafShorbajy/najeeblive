@@ -329,6 +329,7 @@ export type Database = {
           scheduled_at: string | null
           session_number: number
           status: string
+          title: string | null
           zoom_join_url: string | null
           zoom_meeting_id: string | null
           zoom_start_url: string | null
@@ -341,6 +342,7 @@ export type Database = {
           scheduled_at?: string | null
           session_number: number
           status?: string
+          title?: string | null
           zoom_join_url?: string | null
           zoom_meeting_id?: string | null
           zoom_start_url?: string | null
@@ -353,6 +355,7 @@ export type Database = {
           scheduled_at?: string | null
           session_number?: number
           status?: string
+          title?: string | null
           zoom_join_url?: string | null
           zoom_meeting_id?: string | null
           zoom_start_url?: string | null
