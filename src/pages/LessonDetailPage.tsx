@@ -34,6 +34,32 @@ export default function LessonDetailPage() {
   const [buying, setBuying] = useState(false);
   const [paymentSettings, setPaymentSettings] = useState<any>(null);
 
+  // Installment state
+  const [paymentPlan, setPaymentPlan] = useState<"full" | "installment">("full");
+
+  // Calculate installment info based on total sessions
+  const getInstallmentInfo = (totalSessions: number, totalPrice: number) => {
+    if (!totalSessions || totalSessions <= 5) return null; // No installments for ≤5 sessions
+    let numInstallments = 2;
+    if (totalSessions >= 11 && totalSessions <= 20) numInstallments = 4;
+    else if (totalSessions >= 21 && totalSessions <= 50) numInstallments = 6;
+    const sessionsPerInstallment = Math.ceil(totalSessions / numInstallments);
+    const amountPerInstallment = Math.ceil((totalPrice / numInstallments) * 100) / 100;
+    return { numInstallments, sessionsPerInstallment, amountPerInstallment };
+  };
+
+  const installmentInfo = lesson ? getInstallmentInfo(lesson.total_sessions, lesson.price) : null;
+  const currentPayAmount = lesson ? (
+    paymentPlan === "full" || !installmentInfo
+      ? lesson.price
+      : installmentInfo.amountPerInstallment
+  ) : 0;
+  const currentPaidSessions = lesson ? (
+    paymentPlan === "full" || !installmentInfo
+      ? (lesson.total_sessions || 999)
+      : installmentInfo.sessionsPerInstallment
+  ) : 0;
+
   useEffect(() => {
     if (!id) return;
     supabase.from("lessons").select("*").eq("id", id).single()
@@ -95,7 +121,7 @@ export default function LessonDetailPage() {
     if (!user || !lesson) return;
     setBuying(true);
 
-    // Group lessons go directly to "scheduled" since dates are pre-set
+    const isInstallment = lesson.lesson_type === "group" && paymentPlan === "installment" && installmentInfo;
     const bookingStatus = lesson.lesson_type === "group" ? "scheduled" : "accepted";
 
     // Create booking
@@ -103,10 +129,15 @@ export default function LessonDetailPage() {
       student_id: user.id,
       lesson_id: lesson.id,
       teacher_id: lesson.teacher_id,
-      amount: lesson.price,
+      amount: currentPayAmount,
       payment_method: "paypal" as any,
       status: bookingStatus,
-    }).select().single();
+      ...(isInstallment ? {
+        is_installment: true,
+        total_installments: installmentInfo!.numInstallments,
+        paid_sessions: installmentInfo!.sessionsPerInstallment,
+      } : {}),
+    } as any).select().single();
 
     if (error || !bookingData) {
       toast.error("حدث خطأ في الحجز");
@@ -120,10 +151,22 @@ export default function LessonDetailPage() {
       student_id: user.id,
       teacher_id: lesson.teacher_id,
       lesson_id: lesson.id,
-      amount: lesson.price,
+      amount: currentPayAmount,
       payment_method: "paypal",
       status: "paid",
     } as any);
+
+    // Create installment record if applicable
+    if (isInstallment) {
+      await (supabase.from("course_installments" as any) as any).insert({
+        booking_id: bookingData.id,
+        installment_number: 1,
+        amount: installmentInfo!.amountPerInstallment,
+        sessions_unlocked: installmentInfo!.sessionsPerInstallment,
+        status: "paid",
+        paid_at: new Date().toISOString(),
+      });
+    }
 
     // Auto-create conversation
     await supabase.from("conversations").insert({
@@ -132,15 +175,16 @@ export default function LessonDetailPage() {
       booking_id: bookingData.id,
     });
 
-    const successMsg = lesson.lesson_type === "group"
-      ? "تم الدفع بنجاح! تم تسجيلك في الكورس الجماعي"
-      : "تم الدفع بنجاح! يمكنك الآن التواصل مع المعلم لتحديد موعد الحصة";
+    const successMsg = isInstallment
+      ? `تم دفع الدفعة الأولى بنجاح! تم فتح ${installmentInfo!.sessionsPerInstallment} حصص من أصل ${lesson.total_sessions}`
+      : lesson.lesson_type === "group"
+        ? "تم الدفع بنجاح! تم تسجيلك في الكورس الجماعي"
+        : "تم الدفع بنجاح! يمكنك الآن التواصل مع المعلم لتحديد موعد الحصة";
     toast.success(successMsg);
     setBuyDialogOpen(false);
     const { data } = await supabase.from("bookings").select("*").eq("lesson_id", id).eq("student_id", user.id);
     setBookings(data ?? []);
     if (lesson.lesson_type === "group") {
-      // Refresh enrolled count
       supabase.from("bookings").select("id", { count: "exact", head: true })
         .eq("lesson_id", id).in("status", ["pending", "accepted", "scheduled"])
         .then(({ count }) => setEnrolledCount(count ?? 0));
@@ -177,15 +221,22 @@ export default function LessonDetailPage() {
       receiptUrl = publicUrl;
     }
 
+    const isInstallment = lesson.lesson_type === "group" && paymentPlan === "installment" && installmentInfo;
+
     const { data: bookingData, error } = await supabase.from("bookings").insert({
       student_id: user.id,
       lesson_id: lesson.id,
       teacher_id: lesson.teacher_id,
-      amount: lesson.price,
+      amount: currentPayAmount,
       payment_method: paymentMethod as any,
       payment_receipt_url: receiptUrl,
       status: "pending",
-    }).select().single();
+      ...(isInstallment ? {
+        is_installment: true,
+        total_installments: installmentInfo!.numInstallments,
+        paid_sessions: isInstallment ? installmentInfo!.sessionsPerInstallment : undefined,
+      } : {}),
+    } as any).select().single();
 
     if (error || !bookingData) {
       toast.error("حدث خطأ في الحجز");
@@ -195,10 +246,20 @@ export default function LessonDetailPage() {
         student_id: user.id,
         teacher_id: lesson.teacher_id,
         lesson_id: lesson.id,
-        amount: lesson.price,
+        amount: currentPayAmount,
         payment_method: paymentMethod,
         payment_receipt_url: receiptUrl,
       } as any);
+
+      if (isInstallment) {
+        await (supabase.from("course_installments" as any) as any).insert({
+          booking_id: bookingData.id,
+          installment_number: 1,
+          amount: installmentInfo!.amountPerInstallment,
+          sessions_unlocked: installmentInfo!.sessionsPerInstallment,
+          status: "pending",
+        });
+      }
 
       toast.success("تم إرسال الطلب بنجاح! سيتم مراجعة الفاتورة من الإدارة");
       setBuyDialogOpen(false);
@@ -357,12 +418,70 @@ export default function LessonDetailPage() {
                     <DialogTrigger asChild>
                       <Button variant="hero">شراء الحصة</Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
-                        <DialogTitle>شراء الحصة</DialogTitle>
+                        <DialogTitle>{lesson.lesson_type === "group" ? "شراء الكورس" : "شراء الحصة"}</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-4">
-                        <p className="text-sm text-muted-foreground">المبلغ: <strong>{format(lesson.price)}</strong></p>
+                        {/* Installment plan selection for group courses */}
+                        {lesson.lesson_type === "group" && installmentInfo && (
+                          <div className="space-y-3">
+                            <Label className="text-xs font-semibold">خطة الدفع</Label>
+                            <div className="space-y-2">
+                              <div
+                                className={`p-3 rounded-lg border cursor-pointer transition-colors ${paymentPlan === "full" ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}
+                                onClick={() => setPaymentPlan("full")}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${paymentPlan === "full" ? "border-primary" : "border-muted-foreground"}`}>
+                                      {paymentPlan === "full" && <div className="h-2 w-2 rounded-full bg-primary" />}
+                                    </div>
+                                    <span className="font-medium text-sm">دفع كامل</span>
+                                  </div>
+                                  <span className="font-bold text-primary">{format(lesson.price)}</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1 mr-6">دفع المبلغ كاملاً والوصول لجميع الحصص ({lesson.total_sessions} حصة)</p>
+                              </div>
+                              <div
+                                className={`p-3 rounded-lg border cursor-pointer transition-colors ${paymentPlan === "installment" ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}
+                                onClick={() => setPaymentPlan("installment")}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${paymentPlan === "installment" ? "border-primary" : "border-muted-foreground"}`}>
+                                      {paymentPlan === "installment" && <div className="h-2 w-2 rounded-full bg-primary" />}
+                                    </div>
+                                    <span className="font-medium text-sm">دفع بالأقساط ({installmentInfo.numInstallments} دفعات)</span>
+                                  </div>
+                                  <span className="font-bold text-primary">{format(installmentInfo.amountPerInstallment)}</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1 mr-6">
+                                  ادفع {format(installmentInfo.amountPerInstallment)} لكل دفعة وتحصل على {installmentInfo.sessionsPerInstallment} حصة
+                                </p>
+                                <div className="mt-2 mr-6 p-2 bg-muted/50 rounded text-xs space-y-1">
+                                  {Array.from({ length: installmentInfo.numInstallments }).map((_, i) => {
+                                    const startSession = i * installmentInfo.sessionsPerInstallment + 1;
+                                    const endSession = Math.min((i + 1) * installmentInfo.sessionsPerInstallment, lesson.total_sessions);
+                                    return (
+                                      <div key={i} className="flex justify-between">
+                                        <span>الدفعة {i + 1}: حصة {startSession} - {endSession}</span>
+                                        <span className="font-medium">{format(installmentInfo.amountPerInstallment)}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <p className="text-sm text-muted-foreground">
+                          المبلغ المطلوب: <strong>{format(currentPayAmount)}</strong>
+                          {paymentPlan === "installment" && installmentInfo && (
+                            <span className="text-xs text-primary mr-2">(الدفعة الأولى من {installmentInfo.numInstallments})</span>
+                          )}
+                        </p>
                         <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
                           {paymentSettings?.paypal?.enabled && (
                             <div className="flex items-center gap-2">
@@ -418,7 +537,7 @@ export default function LessonDetailPage() {
                                   return actions.order.create({
                                     intent: "CAPTURE",
                                     purchase_units: [{
-                                      amount: { value: String(lesson.price), currency_code: "USD" },
+                                      amount: { value: String(currentPayAmount), currency_code: "USD" },
                                       description: lesson.title,
                                     }],
                                     application_context: {
