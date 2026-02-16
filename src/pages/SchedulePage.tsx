@@ -469,7 +469,7 @@ export default function SchedulePage() {
                     <p className="text-xs text-muted-foreground">سيتم فتح {nextInstallmentInfo.sessionsToUnlock} حصص إضافية</p>
                   </div>
 
-                  <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <RadioGroup value={paymentMethod} onValueChange={async (v) => { setPaymentMethod(v); if (v === "bank_transfer") { const { requestCameraPermission } = await import("@/lib/uploadFile"); await requestCameraPermission(); } }}>
                     {paymentSettings?.paypal?.enabled && (
                       <div className="flex items-center gap-2">
                         <RadioGroupItem value="paypal" id="cv-inst-paypal" />
@@ -744,7 +744,7 @@ export default function SchedulePage() {
                 <p className="text-xs text-muted-foreground">سيتم فتح {nextInstallmentInfo.sessionsToUnlock} حصص إضافية</p>
               </div>
 
-              <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
+              <RadioGroup value={paymentMethod} onValueChange={async (v) => { setPaymentMethod(v); if (v === "bank_transfer") { const { requestCameraPermission } = await import("@/lib/uploadFile"); await requestCameraPermission(); } }}>
                 {paymentSettings?.paypal?.enabled && (
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value="paypal" id="inst-paypal" />

@@ -502,7 +502,7 @@ export default function LessonDetailPage() {
                             <span className="text-xs text-primary mr-2">(الدفعة الأولى من {installmentInfo.numInstallments})</span>
                           )}
                         </p>
-                        <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
+                        <RadioGroup value={paymentMethod} onValueChange={async (v) => { setPaymentMethod(v); if (v === "bank_transfer") { const { requestCameraPermission } = await import("@/lib/uploadFile"); await requestCameraPermission(); } }}>
                           {paymentSettings?.paypal?.enabled && (
                             <div className="flex items-center gap-2">
                               <RadioGroupItem value="paypal" id="paypal" />
