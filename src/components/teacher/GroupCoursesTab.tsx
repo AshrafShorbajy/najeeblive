@@ -44,6 +44,8 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
   const [enrolledInManaging, setEnrolledInManaging] = useState(0);
   const [uploadingSessionId, setUploadingSessionId] = useState<string | null>(null);
   const [startingSessionId, setStartingSessionId] = useState<string | null>(null);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingSessionDate, setEditingSessionDate] = useState("");
 
   useEffect(() => {
     fetchCourses();
@@ -308,6 +310,17 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
     input.click();
   };
 
+  const handleSaveSessionEdit = async (session: any) => {
+    const updateData: any = {
+      scheduled_at: editingSessionDate ? new Date(editingSessionDate).toISOString() : null,
+    };
+    await supabase.from("group_session_schedules").update(updateData).eq("id", session.id);
+    toast.success("تم تعديل الحصة");
+    setEditingSessionId(null);
+    setEditingSessionDate("");
+    openManageSessions(managingCourse);
+  };
+
   const sessionStatusLabel = (s: string) => {
     const map: Record<string, string> = { pending: "لم تبدأ", active: "جارية", completed: "منتهية" };
     return map[s] ?? s;
@@ -353,6 +366,21 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
           ) : (
             courseSessions.map((session) => (
               <div key={session.id} className="bg-card rounded-xl p-4 border border-border">
+                {editingSessionId === session.id ? (
+                  /* Inline edit mode */
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs">موعد الحصة</Label>
+                      <Input type="datetime-local" value={editingSessionDate}
+                        onChange={e => setEditingSessionDate(e.target.value)} className="mt-1" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => handleSaveSessionEdit(session)} className="flex-1">حفظ</Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingSessionId(null)} className="flex-1">إلغاء</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex-1">
                     <h3 className="font-semibold text-sm">حصة {session.session_number}</h3>
@@ -367,23 +395,31 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
                       {sessionStatusLabel(session.status)}
                     </span>
                     {session.status === "pending" && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>حذف الحصة</AlertDialogTitle>
-                            <AlertDialogDescription>هل أنت متأكد من حذف الحصة {session.session_number}؟</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteSession(session)}>حذف</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                          setEditingSessionId(session.id);
+                          setEditingSessionDate(session.scheduled_at ? new Date(session.scheduled_at).toISOString().slice(0, 16) : "");
+                        }}>
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>حذف الحصة</AlertDialogTitle>
+                              <AlertDialogDescription>هل أنت متأكد من حذف الحصة {session.session_number}؟</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteSession(session)}>حذف</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </>
                     )}
                   </div>
                 </div>
@@ -403,9 +439,13 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
 
                 {/* Pending without date - prompt to set date */}
                 {session.status === "pending" && !session.scheduled_at && (
-                  <p className="text-xs text-orange-500 bg-orange-50 rounded-lg p-2 text-center">
-                    يرجى تعديل الكورس وتحديد موعد هذه الحصة أولاً
-                  </p>
+                  <Button size="sm" variant="outline" className="w-full" onClick={() => {
+                    setEditingSessionId(session.id);
+                    setEditingSessionDate("");
+                  }}>
+                    <CalendarDays className="h-4 w-4 ml-2" />
+                    تحديد موعد الحصة
+                  </Button>
                 )}
 
                 {/* Active session - show zoom link and end button */}
@@ -453,6 +493,8 @@ export default function GroupCoursesTab({ userId, onCoursesChange }: GroupCourse
                       </div>
                     )}
                   </div>
+                )}
+                  </>
                 )}
               </div>
             ))
