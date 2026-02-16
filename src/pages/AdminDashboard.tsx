@@ -325,10 +325,7 @@ const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "c
     if (!announcementTitle) return;
     setSendingAnnouncement(true);
     try {
-      // Save to announcements table
-      await supabase.from("announcements").insert({ title: announcementTitle, description: announcementDesc });
-
-      // Send push notifications via edge function
+      // Send push + in-app notifications only (NOT to homepage banner)
       const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
         body: {
           type: "broadcast",
@@ -342,11 +339,11 @@ const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "c
       setAnnouncementTitle("");
       setAnnouncementDesc("");
       setAnnouncementTarget("all");
-      toast.success("تم إضافة الإعلان وإرسال التنبيهات بنجاح");
+      toast.success("تم إرسال التنبيهات بنجاح");
       loadData();
     } catch (err) {
       console.error("Announcement error:", err);
-      toast.error("خطأ في إضافة الإعلان");
+      toast.error("خطأ في إرسال التنبيهات");
     } finally {
       setSendingAnnouncement(false);
     }
