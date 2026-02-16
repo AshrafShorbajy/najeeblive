@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench, ImagePlus, Globe, ChevronDown, Palette, CreditCard, Percent, ShieldOff, Eye, Video } from "lucide-react";
+import { Plus, Users, BookOpen, GraduationCap, BarChart3, Megaphone, Settings, DollarSign, Trash2, LogOut, Edit, Phone, Mail, Calendar, User, Save, Search, Wrench, ImagePlus, Globe, ChevronDown, Palette, CreditCard, Percent, ShieldOff, Eye, Video, Bell } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -74,11 +74,12 @@ export default function AdminDashboard() {
   const [contactInfo, setContactInfo] = useState<{ email: string; phone: string; whatsapp: string }>({ email: "", phone: "", whatsapp: "" });
   const [promoBanners, setPromoBanners] = useState<{ title: string; description: string; image_url?: string }[]>([]);
   const [homepageSectionsOrder, setHomepageSectionsOrder] = useState<string[]>(["announcements", "promo_banners", "lesson_types", "offers"]);
-  const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "cloud"; cloud_account_id: string; cloud_client_id: string; cloud_client_secret: string }>({ recording_mode: "manual", cloud_account_id: "", cloud_client_id: "", cloud_client_secret: "" });
+const [zoomSettings, setZoomSettings] = useState<{ recording_mode: "manual" | "cloud"; cloud_account_id: string; cloud_client_id: string; cloud_client_secret: string }>({ recording_mode: "manual", cloud_account_id: "", cloud_client_id: "", cloud_client_secret: "" });
+  const [onesignalSettings, setOnesignalSettings] = useState<{ enabled: boolean; app_id: string; rest_api_key: string }>({ enabled: false, app_id: "", rest_api_key: "" });
 
   // Badge counters
   const [adminActiveTab, setAdminActiveTab] = useState("curricula");
-  const [settingsSubTab, setSettingsSubTab] = useState<"design" | "payment" | "currency" | "commission" | "maintenance" | "contact" | "homepage" | "zoom">("design");
+  const [settingsSubTab, setSettingsSubTab] = useState<"design" | "payment" | "currency" | "commission" | "maintenance" | "contact" | "homepage" | "zoom" | "onesignal">("design");
   const [adminViewedTabs, setAdminViewedTabs] = useState<Set<string>>(new Set(["curricula"]));
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [pendingInvoicesCount, setPendingInvoicesCount] = useState(0);
@@ -239,6 +240,14 @@ export default function AdminDashboard() {
             cloud_account_id: v.cloud_account_id || "",
             cloud_client_id: v.cloud_client_id || "",
             cloud_client_secret: v.cloud_client_secret || "",
+          });
+        }
+        if (s.key === "onesignal_settings" && typeof s.value === "object" && s.value !== null) {
+          const v = s.value as any;
+          setOnesignalSettings({
+            enabled: v.enabled || false,
+            app_id: v.app_id || "",
+            rest_api_key: v.rest_api_key || "",
           });
         }
       }
@@ -473,6 +482,13 @@ export default function AdminDashboard() {
       updates.push(supabase.from("site_settings").update({ value: zoomSettings } as any).eq("key", "zoom_settings"));
     } else {
       updates.push(supabase.from("site_settings").insert({ key: "zoom_settings", value: zoomSettings } as any) as any);
+    }
+    // Upsert onesignal_settings
+    const { data: existingOS } = await supabase.from("site_settings").select("id").eq("key", "onesignal_settings").maybeSingle();
+    if (existingOS) {
+      updates.push(supabase.from("site_settings").update({ value: onesignalSettings } as any).eq("key", "onesignal_settings"));
+    } else {
+      updates.push(supabase.from("site_settings").insert({ key: "onesignal_settings", value: onesignalSettings } as any) as any);
     }
     const results = await Promise.all(updates);
     const hasError = results.some(r => r.error);
@@ -938,6 +954,7 @@ export default function AdminDashboard() {
                        {settingsSubTab === "contact" && "تواصل معنا"}
                        {settingsSubTab === "homepage" && "ترتيب الصفحة الرئيسية"}
                        {settingsSubTab === "zoom" && "إعدادات زوم"}
+                       {settingsSubTab === "onesignal" && "إشعارات OneSignal"}
                     </span>
                     <ChevronDown className="h-3 w-3" />
                   </Button>
@@ -966,6 +983,9 @@ export default function AdminDashboard() {
                    </DropdownMenuItem>
                    <DropdownMenuItem onClick={() => setSettingsSubTab("zoom")}>
                      <Video className="h-4 w-4 ml-1" /> إعدادات زوم
+                   </DropdownMenuItem>
+                   <DropdownMenuItem onClick={() => setSettingsSubTab("onesignal")}>
+                     <Bell className="h-4 w-4 ml-1" /> إشعارات OneSignal
                    </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1468,6 +1488,80 @@ export default function AdminDashboard() {
                           <li>يجب أن يكون لديك اشتراك Zoom Pro أو أعلى لاستخدام التسجيل السحابي</li>
                           <li>تأكد من تفعيل صلاحية "Cloud Recording" في تطبيقك</li>
                           <li>سيتم تغيير إعداد التسجيل التلقائي لـ "cloud" في اجتماعات زوم</li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* إعدادات OneSignal */}
+              {settingsSubTab === "onesignal" && (
+                <div className="bg-card rounded-xl p-4 border border-border space-y-4">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-primary" />
+                    إشعارات OneSignal
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    ربط OneSignal لإرسال إشعارات الدفع لتطبيقات الجوال (أندرويد / iOS) عند تحويل الموقع إلى تطبيق عبر Median.co أو أي خدمة أخرى.
+                  </p>
+
+                  <div className="flex items-center justify-between border border-border rounded-lg p-3">
+                    <div>
+                      <h4 className="font-medium text-sm">تفعيل OneSignal</h4>
+                      <p className="text-[10px] text-muted-foreground">عند التفعيل سيتم إرسال الإشعارات عبر OneSignal بالإضافة للنظام الحالي</p>
+                    </div>
+                    <Switch
+                      checked={onesignalSettings.enabled}
+                      onCheckedChange={(v) => setOnesignalSettings(prev => ({ ...prev, enabled: v }))}
+                    />
+                  </div>
+
+                  {onesignalSettings.enabled && (
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-xs">OneSignal App ID</Label>
+                        <Input
+                          dir="ltr"
+                          placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                          value={onesignalSettings.app_id}
+                          onChange={e => setOnesignalSettings(prev => ({ ...prev, app_id: e.target.value }))}
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          {"تجده في لوحة تحكم OneSignal → Settings → Keys & IDs → OneSignal App ID"}
+                        </p>
+                      </div>
+                      <div>
+                        <Label className="text-xs">REST API Key</Label>
+                        <Input
+                          dir="ltr"
+                          type="password"
+                          placeholder="أدخل REST API Key"
+                          value={onesignalSettings.rest_api_key}
+                          onChange={e => setOnesignalSettings(prev => ({ ...prev, rest_api_key: e.target.value }))}
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          {"تجده في لوحة تحكم OneSignal → Settings → Keys & IDs → REST API Key"}
+                        </p>
+                      </div>
+
+                      <div className="bg-primary/5 rounded-lg p-3 text-xs space-y-2">
+                        <p className="font-semibold">📱 كيفية الإعداد:</p>
+                        <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                          <li>{"أنشئ حساباً في "}<a href="https://onesignal.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">OneSignal.com</a></li>
+                          <li>أنشئ تطبيقاً جديداً واختر المنصات (Android / iOS / Web)</li>
+                          <li>أعدّ شهادات الإشعارات لكل منصة (Firebase لأندرويد، APNs لآبل)</li>
+                          <li>انسخ App ID و REST API Key من لوحة تحكم OneSignal وألصقهما هنا</li>
+                          <li>عند تحويل الموقع لتطبيق عبر Median.co، فعّل إضافة OneSignal في إعدادات Median</li>
+                        </ol>
+                      </div>
+
+                      <div className="bg-warning/10 rounded-lg p-3 text-xs text-warning space-y-1">
+                        <p className="font-semibold">⚠️ ملاحظات مهمة:</p>
+                        <ul className="list-disc list-inside space-y-0.5">
+                          <li>REST API Key سرّي — لا تشاركه مع أي شخص</li>
+                          <li>سيتم إرسال الإشعارات عبر OneSignal بالتوازي مع نظام Web Push الحالي</li>
+                          <li>يجب ربط المستخدمين بـ External User ID (يتم تلقائياً عند تسجيل الدخول)</li>
                         </ul>
                       </div>
                     </div>

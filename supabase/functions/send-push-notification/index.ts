@@ -64,11 +64,14 @@ serve(async (req) => {
       .select("*")
       .in("user_id", targetUserIds);
 
-    if (!subscriptions || subscriptions.length === 0) {
-      return new Response(JSON.stringify({ sent: 0, reason: "no_subscriptions" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Load OneSignal settings
+    const { data: osSettings } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "onesignal_settings")
+      .maybeSingle();
+
+    const onesignal = osSettings?.value as { enabled?: boolean; app_id?: string; rest_api_key?: string } | null;
 
     const payload = JSON.stringify({
       title: title || "إشعار جديد",
@@ -78,36 +81,75 @@ serve(async (req) => {
       data: { type, url: "/" },
     });
 
-    let sent = 0;
+    let webPushSent = 0;
     const expiredIds: string[] = [];
 
-    for (const sub of subscriptions) {
-      try {
-        const pushSubscription = {
-          endpoint: sub.endpoint,
-          keys: {
-            p256dh: sub.p256dh,
-            auth: sub.auth,
-          },
-        };
+    // Send Web Push notifications
+    if (subscriptions && subscriptions.length > 0) {
+      for (const sub of subscriptions) {
+        try {
+          const pushSubscription = {
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: sub.p256dh,
+              auth: sub.auth,
+            },
+          };
 
-        await webpush.sendNotification(pushSubscription, payload);
-        sent++;
-        console.log(`Push sent successfully to ${sub.endpoint.slice(0, 50)}...`);
-      } catch (error: any) {
-        console.error(`Push failed for sub ${sub.id}:`, error.statusCode, error.body);
-        if (error.statusCode === 410 || error.statusCode === 404) {
-          expiredIds.push(sub.id);
+          await webpush.sendNotification(pushSubscription, payload);
+          webPushSent++;
+          console.log(`Push sent successfully to ${sub.endpoint.slice(0, 50)}...`);
+        } catch (error: any) {
+          console.error(`Push failed for sub ${sub.id}:`, error.statusCode, error.body);
+          if (error.statusCode === 410 || error.statusCode === 404) {
+            expiredIds.push(sub.id);
+          }
         }
+      }
+
+      // Clean up expired subscriptions
+      if (expiredIds.length > 0) {
+        await supabase.from("push_subscriptions").delete().in("id", expiredIds);
       }
     }
 
-    // Clean up expired subscriptions
-    if (expiredIds.length > 0) {
-      await supabase.from("push_subscriptions").delete().in("id", expiredIds);
+    // Send OneSignal notifications
+    let onesignalSent = 0;
+    if (onesignal?.enabled && onesignal.app_id && onesignal.rest_api_key) {
+      try {
+        const osPayload = {
+          app_id: onesignal.app_id,
+          include_aliases: {
+            external_id: targetUserIds,
+          },
+          target_channel: "push",
+          headings: { en: title || "إشعار جديد", ar: title || "إشعار جديد" },
+          contents: { en: body || "", ar: body || "" },
+          data: { type, url: "/" },
+        };
+
+        const osResponse = await fetch("https://api.onesignal.com/notifications", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Key ${onesignal.rest_api_key}`,
+          },
+          body: JSON.stringify(osPayload),
+        });
+
+        const osResult = await osResponse.json();
+        if (osResponse.ok) {
+          onesignalSent = osResult.recipients || 0;
+          console.log("OneSignal sent:", osResult);
+        } else {
+          console.error("OneSignal error:", osResult);
+        }
+      } catch (osError) {
+        console.error("OneSignal request failed:", osError);
+      }
     }
 
-    return new Response(JSON.stringify({ sent, expired: expiredIds.length }), {
+    return new Response(JSON.stringify({ sent: webPushSent, onesignal_sent: onesignalSent, expired: expiredIds.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
