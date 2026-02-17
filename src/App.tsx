@@ -16,6 +16,7 @@ import ProfilePage from "./pages/ProfilePage";
 import FavoritesPage from "./pages/FavoritesPage";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import SetupPage from "./pages/SetupPage";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ const App = () => (
               <Route path="/favorites" element={<FavoritesPage />} />
               <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
               <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/setup" element={<SetupPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </CurrencyProvider>
