@@ -247,7 +247,7 @@ export default function LessonDetailPage() {
       ...(isInstallment ? {
         is_installment: true,
         total_installments: installmentInfo!.numInstallments,
-        paid_sessions: isInstallment ? installmentInfo!.sessionsPerInstallment : undefined,
+        paid_sessions: 0,
       } : {}),
     } as any).select().single();
 
