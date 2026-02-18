@@ -13,14 +13,17 @@ export function useAuth() {
     const fetchRoles = async (userId: string): Promise<string[]> => {
       try {
         const { data, error } = await supabase
-          .from("user_roles")
+          .from("profiles")
           .select("role")
-          .eq("user_id", userId);
+          .eq("id", userId)
+          .limit(1)
+          .maybeSingle();
         if (error) {
           console.error("Error fetching roles:", error);
           return [];
         }
-        return data?.map((r) => r.role) ?? [];
+        const role = (data as any)?.role as string | undefined;
+        return role ? [role] : [];
       } catch (err) {
         console.error("fetchRoles exception:", err);
         return [];

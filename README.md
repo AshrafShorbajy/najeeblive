@@ -1,73 +1,37 @@
-# Welcome to your Lovable project
+# SudTutor – Production Build with Installer
 
-## Project info
+## What this contains
+- Frontend (Vite React) production build output in `dist/`
+- Backend installer/API server in `server/index.js` and `server/schema.sql`
+- Route gate which loads the Install Wizard first when the server is not installed
+- Netlify config at repository root (`netlify.toml`) for builds in a monorepo
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Deploy on a Node web server
+1. Copy these to your server:
+   - The entire `sudtutor/` directory
+   - The root `netlify.toml` (optional for Netlify)
+2. On the server, run:
+   - `cd sudtutor`
+   - `npm ci`
+   - `npm run build` (optional, already built into `dist/`)
+   - `npm run installer`
+3. Open `http://yourserver:4000/` and complete the installer.
+4. After installation, the app loads normally and serves the SPA from `dist/`.
 
-## How can I edit this code?
+## Environment and keys
+- Installer requires your Supabase Project URL and Service Role Key.
+- For migrations, either add a Supabase PAT in the wizard or the database password.
+- Frontend can be connected to your project in `/connect` by pasting Project URL and anon key.
 
-There are several ways of editing your application.
+## Netlify (static frontend only)
+- If you deploy only the static frontend to Netlify, ensure your backend installer/API is reachable on the same domain or via proxy.
+- Root `netlify.toml` sets:
+  - `base = "sudtutor"`
+  - `command = "npm run build"`
+  - `publish = "sudtutor/dist"`
+  - SPA redirect to `/index.html`
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## Start commands
+- Dev frontend: `npm run dev`
+- Backend installer/API: `npm run installer`
+- Production build: `npm run build`
