@@ -2,12 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const ENV_URL = import.meta.env.VITE_SUPABASE_URL;
-const ENV_ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-const LS_URL = typeof window !== "undefined" ? localStorage.getItem("supabaseUrlOverride") : null;
-const LS_ANON = typeof window !== "undefined" ? localStorage.getItem("supabaseAnonOverride") : null;
-const SUPABASE_URL = (LS_URL && LS_URL.length > 0 ? LS_URL : ENV_URL) as string;
-const SUPABASE_PUBLISHABLE_KEY = (LS_ANON && LS_ANON.length > 0 ? LS_ANON : ENV_ANON) as string;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
